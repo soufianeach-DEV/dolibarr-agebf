@@ -24,10 +24,11 @@ class AgeBF
 		$annee = (int) date('Y');
 		$date_ref = $annee . '-01-01';
 
-		// Récupère tous les contacts avec une date de naissance renseignée
+		// Récupère uniquement les contacts de type 'Enfant' avec une date de naissance
 		$sql = "SELECT sp.rowid, sp.birthday";
 		$sql .= " FROM ".MAIN_DB_PREFIX."socpeople as sp";
 		$sql .= " WHERE sp.birthday IS NOT NULL";
+		$sql .= " AND sp.poste = 'Enfant'";
 
 		$resql = $this->db->query($sql);
 
@@ -40,7 +41,7 @@ class AgeBF
 		$nb_err = 0;
 
 		while ($obj = $this->db->fetch_object($resql)) {
-			$naissance = new DateTime($this->db->jdate($obj->birthday));
+			$naissance = new DateTime($obj->birthday); // birthday = DATE MySQL 'YYYY-MM-DD'
 			$reference = new DateTime($date_ref);
 			$age = (int) $reference->diff($naissance)->y;
 

@@ -2,122 +2,122 @@
 
 Module custom développé dans le cadre d'un stage chez **Bruxelles Formation**.
 
-## Objectif
-
-Calculer automatiquement l'âge des contacts au 1er janvier de l'année en cours via un **cron Dolibarr**, et stocker le résultat dans un champ personnalisé `age_1jan`.
-
-## Fonctionnement
-
-- Champ extrafield `age_1jan` créé automatiquement sur les contacts à l'activation
-- Tâche cron journalière qui calcule l'âge de tous les contacts ayant un `birthday`
-- Calcul basé sur le **1er janvier de l'année en cours**
-
-## Structure
-
-```
-agebf/
-├── core/modules/modAgeBF.class.php   # Déclaration du module + cron
-├── class/agebf.class.php             # Logique de calcul des âges
-├── admin/setup.php                   # Page de configuration
-├── sql/                              # Scripts SQL
-└── langs/                            # Traductions
-```
-
-## Auteur
-
-Soufiane Achraa — Stage Bruxelles Formation 2026 — TECHGEST ICCBXL
+**Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
+**Version :** 1.0  
+**Compatibilité :** Dolibarr 19+, PHP 8.0+
 
 ---
 
-## Features
+## Objectif
 
-<!--
-![Screenshot agebf](img/screenshot_agebf.png?raw=true "AgeBF"){imgmd}
--->
+Calculer automatiquement l'âge des contacts de type **Enfant** au 1er janvier de l'année en cours, et stocker le résultat dans le champ `age_1jan`.
 
-Other external modules are available on [Dolistore.com](https://www.dolistore.com).
+Les enfants ayant moins de 15 ans au 1er janvier sont considérés comme **invités** à la fête des enfants de Bruxelles Formation.
 
-## Translations
+---
 
-Translations can be completed manually by editing files into directories *langs*.
+## Fonctionnement
 
-<!--
-This module contains also a sample configuration for Transifex, under the hidden directory [.tx](.tx), so it is possible to manage translation using this service.
+1. Le module crée automatiquement un champ `age_1jan` (extrafield) sur les contacts
+2. Une tâche planifiée (cron) calcule chaque jour l'âge de tous les contacts avec `poste = 'Enfant'` et une date de naissance renseignée
+3. Le résultat est stocké dans `age_1jan` — un enfant avec `age_1jan < 15` est invité
 
-For more information, see the [translator's documentation](https://wiki.dolibarr.org/index.php/Translator_documentation).
+**Règle :** `age_1jan = age au 1er janvier de l'année en cours`
 
-There is a [Transifex project](https://transifex.com/projects/p/dolibarr-module-template) for this module.
--->
+---
 
+## Structure du module
+
+```
+agebf/
+├── core/modules/modAgeBF.class.php   # Descripteur du module (cron, extrafield, menu)
+├── class/agebf.class.php             # Logique de calcul des âges
+├── admin/setup.php                   # Page de configuration
+├── admin/about.php                   # Page À propos
+├── sql/
+│   ├── dolibarr_allversions.sql      # Script SQL chargé à l'activation (vide)
+│   ├── insert_data_test.sql          # Données de test (exécuter via phpMyAdmin)
+│   ├── import_tiers.csv              # CSV import Tiers (Bruxelles Formation)
+│   └── import_contacts.csv          # CSV import contacts
+├── langs/en_US/agebf.lang            # Traductions
+└── data_test.sql                     # Ancien fichier de test (ignoré)
+```
+
+---
 
 ## Installation
 
-Prerequisites: You must have the Dolibarr ERP CRM software installed. You can down it from [Dolistore.org](https://www.dolibarr.org).
-You can also get a ready to use instance in the cloud from htts://saas.dolibarr.org
+### Prérequis
+- Dolibarr 19+ installé et configuré
+- PHP 8.0+
+- Module **Tiers** et **Contacts** activés dans Dolibarr
 
+### Étapes
 
-### From the ZIP file and GUI interface
+1. Copier le dossier `agebf/` dans `htdocs/custom/`
+2. Dans Dolibarr : **Accueil → Configuration → Modules**
+3. Activer le module **AgeBF**
+4. Le champ `age_1jan` est créé automatiquement sur les contacts
+5. Le cron apparaît dans **Outils → Travaux planifiés**
 
-If the module is a ready to deploy zip file, so with a name module_xxx-version.zip (like when downloading it from a market place like [Dolistore](https://www.dolistore.com)),
-go into menu ```Home - Setup - Modules - Deploy external module``` and upload the zip file.
+---
 
-Note: If this screen tell you that there is no "custom" directory, check that your setup is correct:
+## Données de test
 
-<!--
+Le fichier [`sql/insert_data_test.sql`](sql/insert_data_test.sql) insère :
+- 1 Tiers : **Bruxelles Formation**
+- 20 contacts : 10 collaborateurs (avec postes réels BF) + 10 enfants avec dates de naissance
 
-- In your Dolibarr installation directory, edit the ```htdocs/conf/conf.php``` file and check that following lines are not commented:
+**Pour charger les données :**
+1. Ouvrir **phpMyAdmin** → `http://localhost/phpmyadmin`
+2. Sélectionner la base `dolibarr`
+3. Onglet **SQL** → coller le contenu du fichier → Exécuter
 
-    ```php
-    //$dolibarr_main_url_root_alt ...
-    //$dolibarr_main_document_root_alt ...
-    ```
+**Résultat attendu après exécution du cron (référence 1er janvier 2026) :**
 
-- Uncomment them if necessary (delete the leading ```//```) and assign a sensible value according to your Dolibarr installation
+| Enfant | Âge | Invité |
+|--------|-----|--------|
+| Thomas Dupont (2012) | 13 ans | ✅ |
+| Lucas Martin (2015) | 10 ans | ✅ |
+| Nathan Lecomte (2013) | 12 ans | ✅ |
+| Zoé Lecomte (2016) | 9 ans | ✅ |
+| Hugo Bernard (2011) | 14 ans | ✅ |
+| Mathis Dubois (2014) | 11 ans | ✅ |
+| Camille Dubois (2011) | 14 ans | ✅ |
+| Emma Dupont (2009) | 16 ans | ❌ |
+| Chloé Martin (2010) | 15 ans | ❌ |
+| Léa Bernard (2008) | 17 ans | ❌ |
 
-    For example :
+---
 
-    - UNIX:
-        ```php
-        $dolibarr_main_url_root_alt = '/custom';
-        $dolibarr_main_document_root_alt = '/var/www/Dolibarr/htdocs/custom';
-        ```
+## Exécution du cron
 
-    - Windows:
-        ```php
-        $dolibarr_main_url_root_alt = '/custom';
-        $dolibarr_main_document_root_alt = 'C:/My Web Sites/Dolibarr/htdocs/custom';
-        ```
--->
+### Manuellement (tests)
 
-<!--
+1. Aller sur `http://localhost/dolibarr/htdocs/cron/list.php`
+2. Cliquer sur **Exécuter** à côté du cron *"Calcul âge contacts au 1er janvier"*
+3. Vérifier les contacts : le champ `age_1jan` doit être mis à jour
 
-### From a GIT repository
+### Automatiquement — Windows Task Scheduler
 
-Clone the repository in ```$dolibarr_main_document_root_alt/agebf```
+Pour automatiser l'exécution quotidienne sur Windows :
 
-```sh
-cd ....../custom
-git clone git@github.com:gitlogin/agebf.git agebf
-```
+1. Ouvrir le **Planificateur de tâches** Windows (`taskschd.msc`)
+2. Cliquer sur **Créer une tâche de base...**
+3. Remplir :
+   - **Nom :** AgeBF — Calcul âges Dolibarr
+   - **Déclencheur :** Tous les jours à **00h05**
+   - **Action :** Démarrer un programme
+   - **Programme :** `C:\xampp\php\php.exe`
+   - **Arguments :** `C:\xampp\htdocs\dolibarr\htdocs\cron\run.php`
+4. Cocher *"Ouvrir la boîte de dialogue Propriétés..."* → onglet **Paramètres** → cocher *"Exécuter la tâche dès que possible si un démarrage planifié est manqué"*
+5. Cliquer **Terminer**
 
--->
+> En production sur un serveur Linux, équivalent : `5 0 * * * php /var/www/dolibarr/htdocs/cron/run.php`
 
-### Final steps
+---
 
-From your browser:
+## Licences
 
-  - Log into Dolibarr as a super-administrator
-  - Go to "Setup" -> "Modules"
-  - You should now be able to find and enable the module
-
-
-
-## Licenses
-
-### Main code
-
-GPLv3 or (at your option) any later version. See file COPYING for more information.
-
-### Documentation
-
-All texts and readmes are licensed under GFDL.
+- Code : GPLv3
+- Documentation : GFDL
