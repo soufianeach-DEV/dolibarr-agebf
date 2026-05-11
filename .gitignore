@@ -1,0 +1,15 @@
+# Dolibarr
+/documents/
+/conf/
+*.log
+
+# PHP
+*.cache
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
