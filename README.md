@@ -1,6 +1,6 @@
 # Module AgeBF — Dolibarr ERP CRM
 
-Module custom développé dans le cadre d'un stage chez **Bruxelles Formation**.
+> Module custom développé dans le cadre d'un stage chez **Bruxelles Formation**.
 
 **Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
 **Version :** 1.0  
@@ -10,19 +10,17 @@ Module custom développé dans le cadre d'un stage chez **Bruxelles Formation**.
 
 ## Objectif
 
-Calculer automatiquement l'âge des contacts de type **Enfant** au 1er janvier de l'année en cours, et stocker le résultat dans le champ `age_1jan`.
+Calculer automatiquement l'âge des contacts de type **Enfant** au 1er janvier de l'année en cours, et déterminer lesquels sont invités à la **fête des enfants** de Bruxelles Formation.
 
-Les enfants ayant moins de 15 ans au 1er janvier sont considérés comme **invités** à la fête des enfants de Bruxelles Formation.
+**Règle métier :** un enfant est invité s'il a **moins de 15 ans** au 1er janvier de l'année en cours.
 
 ---
 
 ## Fonctionnement
 
-1. Le module crée automatiquement un champ `age_1jan` (extrafield) sur les contacts
-2. Une tâche planifiée (cron) calcule chaque jour l'âge de tous les contacts avec `poste = 'Enfant'` et une date de naissance renseignée
-3. Le résultat est stocké dans `age_1jan` — un enfant avec `age_1jan < 15` est invité
-
-**Règle :** `age_1jan = age au 1er janvier de l'année en cours`
+1. À l'activation du module, un champ `age_1jan` est automatiquement créé sur les contacts (extrafield)
+2. Une tâche planifiée (cron) calcule chaque jour l'âge de tous les contacts ayant `poste = 'Enfant'` et une date de naissance renseignée
+3. Le résultat est visible dans la page principale du module **AgeBF** dans Dolibarr
 
 ---
 
@@ -30,17 +28,26 @@ Les enfants ayant moins de 15 ans au 1er janvier sont considérés comme **invit
 
 ```
 agebf/
-├── core/modules/modAgeBF.class.php   # Descripteur du module (cron, extrafield, menu)
-├── class/agebf.class.php             # Logique de calcul des âges
-├── admin/setup.php                   # Page de configuration
-├── admin/about.php                   # Page À propos
+├── agebfindex.php                    # Page principale : liste des enfants + statut invitation
+├── core/
+│   └── modules/
+│       └── modAgeBF.class.php        # Descripteur du module (cron, extrafield, menu)
+├── class/
+│   └── agebf.class.php               # Logique de calcul des âges
+├── admin/
+│   ├── setup.php                     # Page de configuration du module
+│   └── about.php                     # Page À propos
 ├── sql/
 │   ├── dolibarr_allversions.sql      # Script SQL chargé à l'activation (vide)
-│   ├── insert_data_test.sql          # Données de test (exécuter via phpMyAdmin)
+│   ├── insert_data_test.sql          # Données de test à charger via phpMyAdmin
 │   ├── import_tiers.csv              # CSV import Tiers (Bruxelles Formation)
 │   └── import_contacts.csv          # CSV import contacts
-├── langs/en_US/agebf.lang            # Traductions
-└── data_test.sql                     # Ancien fichier de test (ignoré)
+├── langs/
+│   └── en_US/
+│       └── agebf.lang                # Fichier de traduction
+├── lib/
+│   └── agebf.lib.php                 # Fonctions utilitaires
+└── data_test.sql                     # Sauvegarde données de test (non chargé auto)
 ```
 
 ---
@@ -48,76 +55,108 @@ agebf/
 ## Installation
 
 ### Prérequis
-- Dolibarr 19+ installé et configuré
+
+- Dolibarr 19+ installé et fonctionnel
 - PHP 8.0+
-- Module **Tiers** et **Contacts** activés dans Dolibarr
+- Modules **Tiers** et **Contacts/Adresses** activés dans Dolibarr
 
-### Étapes
+### Étape 1 — Copier le module
 
-1. Copier le dossier `agebf/` dans `htdocs/custom/`
-2. Dans Dolibarr : **Accueil → Configuration → Modules**
-3. Activer le module **AgeBF**
+Copier le dossier `agebf/` dans le répertoire `htdocs/custom/` de votre installation Dolibarr :
+
+```
+htdocs/
+└── custom/
+    └── agebf/      ← coller ici
+```
+
+### Étape 2 — Activer le module
+
+1. Se connecter à Dolibarr en tant qu'administrateur
+2. Aller dans **Accueil → Configuration → Modules/Applications**
+3. Rechercher **AgeBF** et cliquer sur **Activer**
 4. Le champ `age_1jan` est créé automatiquement sur les contacts
 5. Le cron apparaît dans **Outils → Travaux planifiés**
 
----
+### Étape 3 — Charger les données de test
 
-## Données de test
+Ouvrir **phpMyAdmin** (`http://localhost/phpmyadmin`), sélectionner la base `dolibarr`, onglet **SQL**, puis coller et exécuter le contenu de [`sql/insert_data_test.sql`](sql/insert_data_test.sql).
 
-Le fichier [`sql/insert_data_test.sql`](sql/insert_data_test.sql) insère :
+Cela crée :
 - 1 Tiers : **Bruxelles Formation**
-- 20 contacts : 10 collaborateurs (avec postes réels BF) + 10 enfants avec dates de naissance
-
-**Pour charger les données :**
-1. Ouvrir **phpMyAdmin** → `http://localhost/phpmyadmin`
-2. Sélectionner la base `dolibarr`
-3. Onglet **SQL** → coller le contenu du fichier → Exécuter
-
-**Résultat attendu après exécution du cron (référence 1er janvier 2026) :**
-
-| Enfant | Âge | Invité |
-|--------|-----|--------|
-| Thomas Dupont (2012) | 13 ans | ✅ |
-| Lucas Martin (2015) | 10 ans | ✅ |
-| Nathan Lecomte (2013) | 12 ans | ✅ |
-| Zoé Lecomte (2016) | 9 ans | ✅ |
-| Hugo Bernard (2011) | 14 ans | ✅ |
-| Mathis Dubois (2014) | 11 ans | ✅ |
-| Camille Dubois (2011) | 14 ans | ✅ |
-| Emma Dupont (2009) | 16 ans | ❌ |
-| Chloé Martin (2010) | 15 ans | ❌ |
-| Léa Bernard (2008) | 17 ans | ❌ |
+- 20 contacts : 10 collaborateurs (postes réels BF) + 10 enfants avec dates de naissance
 
 ---
 
-## Exécution du cron
+## Utilisation
 
-### Manuellement (tests)
+### Lancer le calcul des âges
 
-1. Aller sur `http://localhost/dolibarr/htdocs/cron/list.php`
-2. Cliquer sur **Exécuter** à côté du cron *"Calcul âge contacts au 1er janvier"*
-3. Vérifier les contacts : le champ `age_1jan` doit être mis à jour
+1. Aller dans **Outils → Travaux planifiés**
+2. Cliquer sur le cron **"Calcul âge contacts au 1er janvier"**
+3. Cliquer sur **"Activer la planification"** puis **"Lancer maintenant"**
 
-### Automatiquement — Windows Task Scheduler
+### Voir les résultats
 
-Pour automatiser l'exécution quotidienne sur Windows :
+Cliquer sur le menu **AgeBF** dans la barre de navigation.
 
-1. Ouvrir le **Planificateur de tâches** Windows (`taskschd.msc`)
-2. Cliquer sur **Créer une tâche de base...**
-3. Remplir :
-   - **Nom :** AgeBF — Calcul âges Dolibarr
+La page affiche :
+
+| Colonne | Description |
+|---|---|
+| Nom / Prénom | Identité de l'enfant |
+| Date de naissance | Birthday enregistré dans le contact |
+| Âge au 1er janvier | Calculé par le cron |
+| Invité(e) | ✔ Oui si âge < 15 ans — ✘ Non sinon |
+
+---
+
+## Résultat attendu (données de test, référence 1er janvier 2026)
+
+| Enfant | Date de naissance | Âge | Invité |
+|--------|-------------------|-----|--------|
+| Zoé Lecomte | 2016-02-14 | 9 ans | ✔ Oui |
+| Lucas Martin | 2015-01-08 | 10 ans | ✔ Oui |
+| Mathis Dubois | 2014-04-17 | 11 ans | ✔ Oui |
+| Nathan Lecomte | 2013-06-05 | 12 ans | ✔ Oui |
+| Thomas Dupont | 2012-03-15 | 13 ans | ✔ Oui |
+| Hugo Bernard | 2011-09-20 | 14 ans | ✔ Oui |
+| Camille Dubois | 2011-12-15 | 14 ans | ✔ Oui |
+| Chloé Martin | 2010-11-30 | 15 ans | ✘ Non |
+| Emma Dupont | 2009-12-07 | 16 ans | ✘ Non |
+| Léa Bernard | 2008-12-03 | 17 ans | ✘ Non |
+
+---
+
+## Automatisation
+
+### Exécution manuelle (tests)
+
+Outils → Travaux planifiés → **Lancer maintenant**
+
+### Windows — Task Scheduler (production locale)
+
+1. Ouvrir le **Planificateur de tâches** (`taskschd.msc`)
+2. **Créer une tâche de base**
+3. Configurer :
+   - **Nom :** AgeBF Calcul âges Dolibarr
    - **Déclencheur :** Tous les jours à **00h05**
    - **Action :** Démarrer un programme
    - **Programme :** `C:\xampp\php\php.exe`
    - **Arguments :** `C:\xampp\htdocs\dolibarr\htdocs\cron\run.php`
-4. Cocher *"Ouvrir la boîte de dialogue Propriétés..."* → onglet **Paramètres** → cocher *"Exécuter la tâche dès que possible si un démarrage planifié est manqué"*
-5. Cliquer **Terminer**
+4. Terminer
 
-> En production sur un serveur Linux, équivalent : `5 0 * * * php /var/www/dolibarr/htdocs/cron/run.php`
+### Linux / Serveur (production)
+
+Ajouter dans la crontab (`crontab -e`) :
+
+```bash
+5 0 * * * php /var/www/html/dolibarr/htdocs/cron/run.php
+```
 
 ---
 
 ## Licences
 
-- Code : GPLv3
-- Documentation : GFDL
+- Code source : **GPLv3**
+- Documentation : **GFDL**

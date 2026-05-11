@@ -452,7 +452,7 @@ class modAgeBF extends DolibarrModules
 		// Création automatique du champ age_1jan sur les contacts
 		include_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 		$extrafields = new ExtraFields($this->db);
-		$extrafields->addExtraField('age_1jan', "Âge au 1er janvier", 'int', 1, 3, 'socpeople', 0, 0, '', '', 1, '', 0, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+		$extrafields->addExtraField('age_1jan', "Âge au 1er janvier", 'int', 1, 3, 'socpeople', 0, 0, '', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
 
 		// Permissions
 		$this->remove($options);

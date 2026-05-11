@@ -1,246 +1,116 @@
 <?php
-/* Copyright (C) 2001-2005 Rodolphe Quiedeville <rodolphe@quiedeville.org>
- * Copyright (C) 2004-2015 Laurent Destailleur  <eldy@users.sourceforge.net>
- * Copyright (C) 2005-2012 Regis Houssin        <regis.houssin@inodbox.com>
- * Copyright (C) 2015      Jean-François Ferry	<jfefe@aternatik.fr>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <https://www.gnu.org/licenses/>.
- */
+/* Copyright (C) 2026 Bruxelles Formation */
 
-/**
- *	\file       agebf/agebfindex.php
- *	\ingroup    agebf
- *	\brief      Home page of agebf top menu
- */
-
-// Load Dolibarr environment
 $res = 0;
-// Try main.inc.php into web root known defined into CONTEXT_DOCUMENT_ROOT (not always defined)
 if (!$res && !empty($_SERVER["CONTEXT_DOCUMENT_ROOT"])) {
 	$res = @include $_SERVER["CONTEXT_DOCUMENT_ROOT"]."/main.inc.php";
 }
-// Try main.inc.php into web root detected using web root calculated from SCRIPT_FILENAME
 $tmp = empty($_SERVER['SCRIPT_FILENAME']) ? '' : $_SERVER['SCRIPT_FILENAME']; $tmp2 = realpath(__FILE__); $i = strlen($tmp) - 1; $j = strlen($tmp2) - 1;
-while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i] == $tmp2[$j]) {
-	$i--;
-	$j--;
-}
+while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i] == $tmp2[$j]) { $i--; $j--; }
 if (!$res && $i > 0 && file_exists(substr($tmp, 0, ($i + 1))."/main.inc.php")) {
 	$res = @include substr($tmp, 0, ($i + 1))."/main.inc.php";
 }
-if (!$res && $i > 0 && file_exists(dirname(substr($tmp, 0, ($i + 1)))."/main.inc.php")) {
-	$res = @include dirname(substr($tmp, 0, ($i + 1)))."/main.inc.php";
-}
-// Try main.inc.php using relative path
-if (!$res && file_exists("../main.inc.php")) {
-	$res = @include "../main.inc.php";
-}
-if (!$res && file_exists("../../main.inc.php")) {
-	$res = @include "../../main.inc.php";
-}
-if (!$res && file_exists("../../../main.inc.php")) {
-	$res = @include "../../../main.inc.php";
-}
-if (!$res) {
-	die("Include of main fails");
-}
+if (!$res && file_exists("../main.inc.php")) { $res = @include "../main.inc.php"; }
+if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.inc.php"; }
+if (!$res) { die("Include of main fails"); }
 
-require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
-
-// Load translation files required by the page
 $langs->loadLangs(array("agebf@agebf"));
 
-$action = GETPOST('action', 'aZ09');
+$annee_ref = (int) date('Y');
+$date_ref  = $annee_ref . '-01-01';
 
-$max = 5;
-$now = dol_now();
+// Récupère tous les enfants avec leur age_1jan
+$sql  = "SELECT sp.rowid, sp.lastname, sp.firstname, sp.birthday, ex.age_1jan";
+$sql .= " FROM " . MAIN_DB_PREFIX . "socpeople as sp";
+$sql .= " LEFT JOIN " . MAIN_DB_PREFIX . "socpeople_extrafields as ex ON ex.fk_object = sp.rowid";
+$sql .= " WHERE sp.poste = 'Enfant'";
+$sql .= " ORDER BY ex.age_1jan ASC, sp.lastname ASC";
 
-// Security check - Protection if external user
-$socid = GETPOST('socid', 'int');
-if (isset($user->socid) && $user->socid > 0) {
-	$action = '';
-	$socid = $user->socid;
-}
+$resql = $db->query($sql);
 
-// Security check (enable the most restrictive one)
-//if ($user->socid > 0) accessforbidden();
-//if ($user->socid > 0) $socid = $user->socid;
-//if (!isModEnabled('agebf')) {
-//	accessforbidden('Module not enabled');
-//}
-//if (! $user->hasRight('agebf', 'myobject', 'read')) {
-//	accessforbidden();
-//}
-//restrictedArea($user, 'agebf', 0, 'agebf_myobject', 'myobject', '', 'rowid');
-//if (empty($user->admin)) {
-//	accessforbidden('Must be admin');
-//}
+llxHeader("", "AgeBF — Fête des enfants", '', '', 0, 0, '', '', '', 'mod-agebf page-index');
 
+print load_fiche_titre("Fête des enfants " . $annee_ref . " — Liste des enfants", '', 'fa-child');
 
-/*
- * Actions
- */
-
-// None
-
-
-/*
- * View
- */
-
-$form = new Form($db);
-$formfile = new FormFile($db);
-
-llxHeader("", $langs->trans("AgeBFArea"), '', '', 0, 0, '', '', '', 'mod-agebf page-index');
-
-print load_fiche_titre($langs->trans("AgeBFArea"), '', 'agebf.png@agebf');
-
-print '<div class="fichecenter"><div class="fichethirdleft">';
-
-
-/* BEGIN MODULEBUILDER DRAFT MYOBJECT
-// Draft MyObject
-if (isModEnabled('agebf') && $user->hasRight('agebf', 'read')) {
-	$langs->load("orders");
-
-	$sql = "SELECT c.rowid, c.ref, c.ref_client, c.total_ht, c.tva as total_tva, c.total_ttc, s.rowid as socid, s.nom as name, s.client, s.canvas";
-	$sql.= ", s.code_client";
-	$sql.= " FROM ".MAIN_DB_PREFIX."commande as c";
-	$sql.= ", ".MAIN_DB_PREFIX."societe as s";
-	$sql.= " WHERE c.fk_soc = s.rowid";
-	$sql.= " AND c.fk_statut = 0";
-	$sql.= " AND c.entity IN (".getEntity('commande').")";
-	if ($socid)	$sql.= " AND c.fk_soc = ".((int) $socid);
-
-	$resql = $db->query($sql);
-	if ($resql)
-	{
-		$total = 0;
-		$num = $db->num_rows($resql);
-
-		print '<table class="noborder centpercent">';
-		print '<tr class="liste_titre">';
-		print '<th colspan="3">'.$langs->trans("DraftMyObjects").($num?'<span class="badge marginleftonlyshort">'.$num.'</span>':'').'</th></tr>';
-
-		$var = true;
-		if ($num > 0)
-		{
-			$i = 0;
-			while ($i < $num)
-			{
-
-				$obj = $db->fetch_object($resql);
-				print '<tr class="oddeven"><td class="nowrap">';
-
-				$myobjectstatic->id=$obj->rowid;
-				$myobjectstatic->ref=$obj->ref;
-				$myobjectstatic->ref_client=$obj->ref_client;
-				$myobjectstatic->total_ht = $obj->total_ht;
-				$myobjectstatic->total_tva = $obj->total_tva;
-				$myobjectstatic->total_ttc = $obj->total_ttc;
-
-				print $myobjectstatic->getNomUrl(1);
-				print '</td>';
-				print '<td class="nowrap">';
-				print '</td>';
-				print '<td class="right" class="nowrap">'.price($obj->total_ttc).'</td></tr>';
-				$i++;
-				$total += $obj->total_ttc;
-			}
-			if ($total>0)
-			{
-
-				print '<tr class="liste_total"><td>'.$langs->trans("Total").'</td><td colspan="2" class="right">'.price($total)."</td></tr>";
-			}
+// Statistiques rapides
+if ($resql) {
+	$total     = $db->num_rows($resql);
+	$invites   = 0;
+	$rows      = array();
+	while ($obj = $db->fetch_object($resql)) {
+		$rows[] = $obj;
+		if (!is_null($obj->age_1jan) && (int)$obj->age_1jan < 15) {
+			$invites++;
 		}
-		else
-		{
-
-			print '<tr class="oddeven"><td colspan="3" class="opacitymedium">'.$langs->trans("NoOrder").'</td></tr>';
-		}
-		print "</table><br>";
-
-		$db->free($resql);
 	}
-	else
-	{
-		dol_print_error($db);
-	}
-}
-END MODULEBUILDER DRAFT MYOBJECT */
+	$non_invites = $total - $invites;
 
+	// Bandeau stats
+	print '<div class="fichecenter">';
+	print '<div class="underbanner clearboth"></div>';
+	print '<table class="border centpercent tableforfield">';
+	print '<tr>';
+	print '<td class="titlefield">' . $langs->trans("Référence de calcul") . '</td>';
+	print '<td><b>1er janvier ' . $annee_ref . '</b></td>';
+	print '<td class="titlefield">Total enfants</td>';
+	print '<td><b>' . $total . '</b></td>';
+	print '<td class="titlefield"><span style="color:#28a745">Invités (&lt; 15 ans)</span></td>';
+	print '<td><b style="color:#28a745">' . $invites . '</b></td>';
+	print '<td class="titlefield"><span style="color:#dc3545">Non invités (≥ 15 ans)</span></td>';
+	print '<td><b style="color:#dc3545">' . $non_invites . '</b></td>';
+	print '</tr>';
+	print '</table>';
+	print '</div><br>';
 
-print '</div><div class="fichetwothirdright">';
+	// Tableau des enfants
+	print '<table class="noborder centpercent">';
+	print '<tr class="liste_titre">';
+	print '<th>Nom</th>';
+	print '<th>Prénom</th>';
+	print '<th>Date de naissance</th>';
+	print '<th class="center">Âge au 1er janvier ' . $annee_ref . '</th>';
+	print '<th class="center">Invité(e) à la fête</th>';
+	print '<th class="center">Fiche contact</th>';
+	print '</tr>';
 
+	if (count($rows) === 0) {
+		print '<tr class="oddeven"><td colspan="6" class="center opacitymedium">Aucun enfant trouvé. Vérifiez que les contacts ont le poste "Enfant" et que le cron a été exécuté.</td></tr>';
+	} else {
+		foreach ($rows as $obj) {
+			$age     = is_null($obj->age_1jan) ? null : (int)$obj->age_1jan;
+			$invite  = (!is_null($age) && $age < 15);
 
-$NBMAX = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
-$max = getDolGlobalInt('MAIN_SIZE_SHORTLIST_LIMIT');
+			print '<tr class="oddeven">';
+			print '<td>' . dol_escape_htmltag($obj->lastname) . '</td>';
+			print '<td>' . dol_escape_htmltag($obj->firstname) . '</td>';
+			print '<td>' . (!empty($obj->birthday) ? dol_print_date($db->jdate($obj->birthday), 'day') : '<i>Non renseignée</i>') . '</td>';
 
-/* BEGIN MODULEBUILDER LASTMODIFIED MYOBJECT
-// Last modified myobject
-if (isModEnabled('agebf') && $user->hasRight('agebf', 'read')) {
-	$sql = "SELECT s.rowid, s.ref, s.label, s.date_creation, s.tms";
-	$sql.= " FROM ".MAIN_DB_PREFIX."agebf_myobject as s";
-	$sql.= " WHERE s.entity IN (".getEntity($myobjectstatic->element).")";
-	//if ($socid)	$sql.= " AND s.rowid = $socid";
-	$sql .= " ORDER BY s.tms DESC";
-	$sql .= $db->plimit($max, 0);
-
-	$resql = $db->query($sql);
-	if ($resql)
-	{
-		$num = $db->num_rows($resql);
-		$i = 0;
-
-		print '<table class="noborder centpercent">';
-		print '<tr class="liste_titre">';
-		print '<th colspan="2">';
-		print $langs->trans("BoxTitleLatestModifiedMyObjects", $max);
-		print '</th>';
-		print '<th class="right">'.$langs->trans("DateModificationShort").'</th>';
-		print '</tr>';
-		if ($num)
-		{
-			while ($i < $num)
-			{
-				$objp = $db->fetch_object($resql);
-
-				$myobjectstatic->id=$objp->rowid;
-				$myobjectstatic->ref=$objp->ref;
-				$myobjectstatic->label=$objp->label;
-				$myobjectstatic->status = $objp->status;
-
-				print '<tr class="oddeven">';
-				print '<td class="nowrap">'.$myobjectstatic->getNomUrl(1).'</td>';
-				print '<td class="right nowrap">';
-				print "</td>";
-				print '<td class="right nowrap">'.dol_print_date($db->jdate($objp->tms), 'day')."</td>";
-				print '</tr>';
-				$i++;
+			if (is_null($age)) {
+				print '<td class="center"><span class="opacitymedium">Non calculé</span></td>';
+				print '<td class="center"><span class="opacitymedium">—</span></td>';
+			} else {
+				print '<td class="center"><b>' . $age . ' ans</b></td>';
+				if ($invite) {
+					print '<td class="center"><span style="color:#28a745;font-weight:bold">✔ Oui</span></td>';
+				} else {
+					print '<td class="center"><span style="color:#dc3545;font-weight:bold">✘ Non</span></td>';
+				}
 			}
 
-			$db->free($resql);
-		} else {
-			print '<tr class="oddeven"><td colspan="3" class="opacitymedium">'.$langs->trans("None").'</td></tr>';
+			print '<td class="center"><a href="' . DOL_URL_ROOT . '/contact/card.php?id=' . ((int)$obj->rowid) . '">Voir</a></td>';
+			print '</tr>';
 		}
-		print "</table><br>";
 	}
+	print '</table>';
+
+	$db->free($resql);
+} else {
+	print '<div class="error">' . $db->lasterror() . '</div>';
 }
-*/
 
-print '</div></div>';
+print '<br><div class="center">';
+print '<a class="butAction" href="' . DOL_URL_ROOT . '/cron/list.php">Gérer le cron</a>';
+print '</div>';
 
-// End of page
 llxFooter();
 $db->close();
