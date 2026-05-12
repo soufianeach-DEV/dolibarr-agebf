@@ -295,9 +295,41 @@ class modAgeBF extends DolibarrModules
 		*/
 		/* END MODULEBUILDER PERMISSIONS */
 
-		// Pas d'entrée dans le menu principal — accessible via Accueil > Modules > AgeBF
+		// Menu
 		$this->menu = array();
 		$r = 0;
+
+		// ── Entrée dans la barre de navigation du haut ───────────────────────
+		$this->menu[$r++] = array(
+			'fk_menu'  => '',              // vide = entrée de niveau TOP
+			'type'     => 'top',
+			'titre'    => 'AgeBF',
+			'mainmenu' => 'agebf',
+			'leftmenu' => '',
+			'url'      => '/custom/agebf/agebfindex.php',
+			'langs'    => 'agebf@agebf',
+			'position' => 100,
+			'enabled'  => 'isModEnabled("agebf")',
+			'perms'    => '1',
+			'target'   => '',
+			'user'     => 2,   // 0=interne, 1=externe, 2=les deux
+		);
+
+		// ── Sous-entrée gauche : Fête des enfants ────────────────────────────
+		$this->menu[$r++] = array(
+			'fk_menu'  => 'fk_mainmenu=agebf',
+			'type'     => 'left',
+			'titre'    => '🎉 Fête des enfants',
+			'mainmenu' => 'agebf',
+			'leftmenu' => 'agebf_index',
+			'url'      => '/custom/agebf/agebfindex.php',
+			'langs'    => 'agebf@agebf',
+			'position' => 10,
+			'enabled'  => 'isModEnabled("agebf")',
+			'perms'    => '1',
+			'target'   => '',
+			'user'     => 2,
+		);
 		/* BEGIN MODULEBUILDER LEFTMENU MYOBJECT */
 		/*
 		$this->menu[$r++]=array(
