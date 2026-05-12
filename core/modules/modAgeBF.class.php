@@ -319,7 +319,7 @@ class modAgeBF extends DolibarrModules
 		$this->menu[$r++] = array(
 			'fk_menu'  => 'fk_mainmenu=agebf',
 			'type'     => 'left',
-			'titre'    => '🎉 Fête des enfants',
+			'titre'    => 'Fête des enfants',
 			'mainmenu' => 'agebf',
 			'leftmenu' => 'agebf_index',
 			'url'      => '/custom/agebf/agebfindex.php',
