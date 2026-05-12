@@ -72,7 +72,7 @@ class modAgeBF extends DolibarrModules
 		$this->editor_url = '';
 
 		// Possible values for version are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated', 'experimental_deprecated' or a version string like 'x.y.z'
-		$this->version = '1.0';
+		$this->version = '2.0';
 		// Url to the file with your last numberversion of this module
 		//$this->url_last_version = 'http://www.example.com/versionmodule.txt';
 
@@ -295,27 +295,9 @@ class modAgeBF extends DolibarrModules
 		*/
 		/* END MODULEBUILDER PERMISSIONS */
 
-		// Main menu entries to add
+		// Pas d'entrée dans le menu principal — accessible via Accueil > Modules > AgeBF
 		$this->menu = array();
 		$r = 0;
-		// Add here entries to declare new menus
-		/* BEGIN MODULEBUILDER TOPMENU */
-		$this->menu[$r++] = array(
-			'fk_menu'=>'', // '' if this is a top menu. For left menu, use 'fk_mainmenu=xxx' or 'fk_mainmenu=xxx,fk_leftmenu=yyy' where xxx is mainmenucode and yyy is a leftmenucode
-			'type'=>'top', // This is a Top menu entry
-			'titre'=>'ModuleAgeBFName',
-			'prefix' => img_picto('', $this->picto, 'class="pictofixedwidth valignmiddle"'),
-			'mainmenu'=>'agebf',
-			'leftmenu'=>'',
-			'url'=>'/agebf/agebfindex.php',
-			'langs'=>'agebf@agebf', // Lang file to use (without .lang) by module. File must be in langs/code_CODE/ directory.
-			'position'=>1000 + $r,
-			'enabled'=>'isModEnabled("agebf")', // Define condition to show or hide menu entry. Use 'isModEnabled("agebf")' if entry must be visible if module is enabled.
-			'perms'=>'1', // Use 'perms'=>'$user->hasRight("agebf", "myobject", "read")' if you want your menu with a permission rules
-			'target'=>'',
-			'user'=>2, // 0=Menu for internal users, 1=external users, 2=both
-		);
-		/* END MODULEBUILDER TOPMENU */
 		/* BEGIN MODULEBUILDER LEFTMENU MYOBJECT */
 		/*
 		$this->menu[$r++]=array(
@@ -449,10 +431,18 @@ class modAgeBF extends DolibarrModules
 			return -1; // Do not activate module if error 'not allowed' returned when loading module SQL queries (the _load_table run sql with run_sql with the error allowed parameter set to 'default')
 		}
 
-		// Création automatique du champ age_1jan sur les contacts
+		// ── Création des champs extrafields AgeBF ────────────────────────────
 		include_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
 		$extrafields = new ExtraFields($this->db);
-		$extrafields->addExtraField('age_1jan', "Âge au 1er janvier", 'int', 1, 3, 'socpeople', 0, 0, '', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+
+		// Sur les contacts (socpeople)
+		$extrafields->addExtraField('age_1jan',      "Âge au 1er janvier",  'int',     1, 3,  'socpeople', 0, 0, '',  '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+		$extrafields->addExtraField('fete_enfants',  "Fête des enfants",    'boolean', 2, '',  'socpeople', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+		$extrafields->addExtraField('fk_parent',     "Parent (contact ID)", 'int',     3, 11, 'socpeople', 0, 0, '',  '', 0, '', 0, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+
+		// Sur les Tiers (societe)
+		$extrafields->addExtraField('fete_enfants',      "Fête des enfants",        'boolean', 1, '',  'societe', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+		$extrafields->addExtraField('nb_enfants_invites',"Nb enfants invités (< 16)",'int',    2, 3,   'societe', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
 
 		// Permissions
 		$this->remove($options);
