@@ -16,13 +16,25 @@ Calculer automatiquement l'âge des contacts **Fils / Fille** au 1er janvier de 
 
 ---
 
+## Modèle de données
+
+Le module repose sur le modèle natif Dolibarr :
+
+- **1 Tiers par employé adulte** (ex. : "Dupont Marie") — contient les champs `fete_enfants` et `nb_enfants_invites`
+- **Contacts Fils/Fille** liés au Tiers du parent via le champ standard `fk_soc`
+
+Ce modèle est plus fiable que d'utiliser un champ custom `fk_parent` car il exploite les relations natives de Dolibarr.
+
+---
+
 ## Fonctionnement
 
 1. Le cron calcule chaque jour l'âge de **tous les contacts** ayant une date de naissance
-2. Les contacts avec `poste = 'Fils'` ou `poste = 'Fille'` et âge < 16 reçoivent automatiquement la case **"Fête des enfants" cochée** (`fete_enfants = 1`)
-3. Si un parent a **au moins un enfant** qui qualifie (via le lien `fk_parent`), sa propre case est aussi cochée
-4. Le **Tiers** lié reçoit également la case cochée si au moins un de ses contacts qualifie
-5. La page principale du module affiche la liste avec filtre et **export CSV**
+2. Les contacts avec `poste = 'Fils'` ou `poste = 'Fille'` et âge < 16 reçoivent la case **"Fête des enfants" cochée** (`fete_enfants = 1`)
+3. Le **Tiers** parent reçoit automatiquement :
+   - `fete_enfants = 1` si au moins un de ses enfants qualifie
+   - `nb_enfants_invites = N` avec le nombre d'enfants qualifiés
+4. La page principale du module affiche la liste avec filtre et **export CSV**
 
 ---
 
@@ -31,9 +43,10 @@ Calculer automatiquement l'âge des contacts **Fils / Fille** au 1er janvier de 
 | Champ | Table | Type | Description |
 |---|---|---|---|
 | `age_1jan` | contacts | Int | Âge calculé au 1er janvier |
-| `fete_enfants` | contacts | Boolean | ✔ si l'enfant est invité ou si parent d'un invité |
-| `fk_parent` | contacts | Int | ID du contact parent (à renseigner manuellement) |
-| `fete_enfants` | tiers | Boolean | ✔ si au moins un enfant du tiers est invité |
+| `fete_enfants` | contacts | Boolean | ✔ si l'enfant (Fils/Fille) a < 16 ans |
+| `fk_parent` | contacts | Int | ID contact parent (champ informatif) |
+| `fete_enfants` | tiers | Boolean | ✔ si au moins un enfant du Tiers est invité |
+| `nb_enfants_invites` | tiers | Int | Nombre d'enfants < 16 ans liés au Tiers |
 
 ---
 
@@ -44,17 +57,14 @@ agebf/
 ├── agebfindex.php                    # Page principale : liste, stats, filtre, export CSV
 ├── core/
 │   └── modules/
-│       └── modAgeBF.class.php        # Descripteur v2.0 (cron, extrafields, pas de menu top)
+│       └── modAgeBF.class.php        # Descripteur v2.0 (cron, extrafields)
 ├── class/
-│   └── agebf.class.php               # Logique de calcul + propagation fete_enfants
+│   └── agebf.class.php               # Logique de calcul + propagation vers Tiers
 ├── admin/
 │   ├── setup.php                     # Page de configuration
 │   └── about.php                     # À propos
 ├── sql/
-│   ├── dolibarr_allversions.sql      # Script SQL chargé à l'activation
-│   ├── insert_data_test.sql          # Données de test (20 contacts, 10 enfants)
-│   ├── import_tiers.csv              # CSV import Tiers
-│   └── import_contacts.csv          # CSV import contacts
+│   └── dolibarr_allversions.sql      # Script SQL chargé à l'activation
 ├── langs/
 │   └── en_US/
 │       └── agebf.lang                # Traductions
@@ -66,50 +76,41 @@ agebf/
 
 ## Installation
 
-### Prérequis
+### Méthode 1 — ZIP via l'interface Dolibarr (recommandée)
 
-- Dolibarr 19+ fonctionnel
-- PHP 8.0+
-- Modules **Tiers** et **Contacts/Adresses** activés
+1. Télécharger **`agebf-v2.0.zip`** depuis la [page Releases](https://github.com/soufianeach-DEV/dolibarr-agebf/releases)
+2. Dans Dolibarr : **Configuration → Modules/Applications**
+3. Cliquer sur l'onglet **"Déployer/Installer un module externe"**
+4. Choisir le fichier ZIP → **Envoyer le fichier**
+5. Le module apparaît dans la liste → **Activer**
 
-### Étape 1 — Copier le module
+> Le ZIP doit contenir un dossier `agebf/` à sa racine pour que Dolibarr le reconnaisse.
+
+### Méthode 2 — Installation manuelle
 
 ```
 htdocs/custom/agebf/     ← coller ici le dossier du repo
 ```
 
-### Étape 2 — Activer le module
+Puis activer via **Configuration → Modules/Applications → Rechercher "AgeBF" → Activer**.
 
-1. **Accueil → Configuration → Modules/Applications**
-2. Rechercher **AgeBF** → **Activer**
-3. Les 4 champs extrafields sont créés automatiquement
-4. Le cron apparaît dans **Outils → Travaux planifiés**
+### À l'activation
 
-> **Mise à jour depuis v1.0 :** désactivez puis réactivez le module pour créer les nouveaux champs `fete_enfants` et `fk_parent`.
+Les 5 champs extrafields sont créés automatiquement, ainsi que le cron dans **Outils → Travaux planifiés**.
 
-### Étape 3 — Charger les données de test
-
-Dans **phpMyAdmin**, onglet **SQL**, exécuter [`sql/insert_data_test.sql`](sql/insert_data_test.sql).
-
-Crée : 1 Tiers (Bruxelles Formation) + 20 contacts (10 collaborateurs + 10 enfants avec liens parent).
-
-### Étape 4 — Lier les enfants aux parents (installation manuelle)
-
-Pour chaque contact **Fils/Fille**, renseigner manuellement le champ **"Parent (contact ID)"** avec le `rowid` du contact parent (affiché dans l'URL de la fiche contact).
-
-> Les données de test configurent ce lien automatiquement via SQL.
+> **Mise à jour depuis v1.0 :** désactivez puis réactivez le module pour créer les nouveaux champs.
 
 ---
 
 ## Utilisation
 
-### Lancer le calcul
+### Lancer le calcul manuellement
 
-**Outils → Travaux planifiés** → cron **"Calcul âge contacts au 1er janvier"** → **Lancer maintenant**
+**Outils → Travaux planifiés** → **"Calcul âge contacts au 1er janvier"** → **Lancer maintenant**
 
 ### Voir les résultats
 
-**Accueil → Configuration → Modules → AgeBF → ⚙ (roue dentée)** ou aller directement à :
+Aller à **AgeBF** dans le menu ou directement :
 
 ```
 http://localhost/dolibarr/htdocs/custom/agebf/agebfindex.php
@@ -121,32 +122,13 @@ http://localhost/dolibarr/htdocs/custom/agebf/agebfindex.php
 |---|---|
 | Bandeau stats | Total enfants, nombre < 16 ans, cases cochées |
 | Filtre | "Invités seulement" / "Tous les enfants" |
-| Tableau | Nom, Prénom, Genre, Parent (lien), Tiers, Age, Case fête |
-| Export CSV | Télécharge la liste filtrée en `.csv` (UTF-8 + BOM Excel) |
+| Tableau | Nom, Prénom, Genre, Parent (Tiers lié), Fonction, Âge, Case fête |
+| Export CSV | Bouton en haut → télécharge la liste en `.csv` (UTF-8 + BOM Excel) |
 | Bouton Cron | Lien direct vers la page de gestion des tâches planifiées |
 
-### Champ "Fête des enfants" sur les fiches
+### Champ "Fête des enfants" sur les fiches Tiers
 
-- **Fiche contact Fils/Fille** : case cochée si âge < 16
-- **Fiche contact parent** : cochée si au moins un de ses enfants est invité
-- **Fiche Tiers** : cochée si au moins un contact lié est invité
-
----
-
-## Résultat attendu (données de test, 1er janvier 2026)
-
-| Enfant | Genre | Date naissance | Âge | Invité |
-|--------|-------|---------------|-----|--------|
-| Lecomte Zoé | Fille | 2016-02-14 | 9 | ✔ |
-| Martin Lucas | Fils | 2015-01-08 | 10 | ✔ |
-| Lecomte Nathan | Fils | 2013-06-05 | 12 | ✔ |
-| Dupont Thomas | Fils | 2012-03-15 | 13 | ✔ |
-| Dubois Camille | Fille | 2011-12-15 | 14 | ✔ |
-| Bernard Hugo | Fils | 2011-09-20 | 14 | ✔ |
-| Dubois Mathis | Fils | 2014-04-17 | 11 | ✔ |
-| **Martin Chloé** | Fille | 2010-11-30 | **15** | ✔ ← nouveau v2.0 |
-| Dupont Emma | Fille | 2009-12-07 | 16 | ✘ |
-| Bernard Léa | Fille | 2008-12-03 | 17 | ✘ |
+Dans la liste des Tiers ou sur une fiche Tiers, les colonnes `fete_enfants` et `nb_enfants_invites` sont visibles dans les extrafields.
 
 ---
 
@@ -154,37 +136,33 @@ http://localhost/dolibarr/htdocs/custom/agebf/agebfindex.php
 
 ### Windows — Task Scheduler
 
-1. Ouvrir `taskschd.msc`
-2. **Créer une tâche de base**
-   - Déclencheur : tous les jours à **00h05**
-   - Programme : `C:\xampp\php\php.exe`
-   - Arguments : `C:\xampp\htdocs\dolibarr\htdocs\cron\run.php`
+```bat
+schtasks /Create /TN "DolibarrAgeBF" /TR "\"C:\xampp\php\php.exe\" \"C:\xampp\htdocs\dolibarr\htdocs\cron\run.php\"" /SC DAILY /ST 00:00
+```
+
+Ou via l'interface `taskschd.msc` :
+- Déclencheur : **tous les jours à 00:00**
+- Programme : `C:\xampp\php\php.exe`
+- Arguments : `C:\xampp\htdocs\dolibarr\htdocs\cron\run.php`
 
 ### Linux / Serveur
 
 ```bash
-5 0 * * * php /var/www/html/dolibarr/htdocs/cron/run.php
+0 0 * * * php /var/www/html/dolibarr/htdocs/cron/run.php >> /var/log/dolibarr_cron.log 2>&1
 ```
 
 ---
 
-## Changelog
+## Résultat attendu (données de test, 1er janvier 2026)
 
-### v2.0 (2026-05-12)
-- ✅ Critère d'invitation : âge **< 16** (les 15 ans sont maintenant inclus)
-- ✅ Poste renommé `'Fils'` / `'Fille'` (remplace `'Enfant'`)
-- ✅ Calcul de l'âge étendu à **tous les contacts** (pas seulement les enfants)
-- ✅ Nouveau champ `fete_enfants` (checkbox) sur les contacts ET les Tiers
-- ✅ Propagation automatique : parent et Tiers cochés si au moins un enfant qualifie
-- ✅ Nouveau champ `fk_parent` pour lier un enfant à son parent contact
-- ✅ Page principale : filtre Invités/Tous, colonne Parent avec lien
-- ✅ **Export CSV** de la liste des enfants invités (compatible Excel UTF-8)
-- ✅ Suppression du menu de navigation principale (moins encombrant)
+| Enfant | Genre | Date naissance | Âge | Invité |
+|--------|-------|---------------|-----|--------|
+| Enfant A | Fille | 2011-03-15 | 14 | ✔ |
+| Enfant B | Fils | 2012-07-20 | 13 | ✔ |
+| Enfant C | Fille | 2010-11-30 | **15** | ✔ ← inclus v2.0 |
+| Enfant D | Fils | 2009-12-07 | 16 | ✘ |
 
-### v1.0 (2026-05-01)
-- Calcul âge contacts `poste='Enfant'` au 1er janvier
-- Affichage liste ✔/✘ dans la page AgeBF
-- Cron quotidien automatisé
+Les Tiers parents obtiennent automatiquement `fete_enfants = 1` et `nb_enfants_invites = N`.
 
 ---
 
