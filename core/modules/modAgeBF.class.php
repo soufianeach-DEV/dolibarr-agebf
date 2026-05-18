@@ -301,9 +301,10 @@ class modAgeBF extends DolibarrModules
 
 		// ── Entrée dans la barre de navigation du haut ───────────────────────
 		$this->menu[$r++] = array(
-			'fk_menu'  => '',              // vide = entrée de niveau TOP
+			'fk_menu'  => '',
 			'type'     => 'top',
-			'titre'    => 'AgeBF',
+			'titre'    => 'Helpy',
+			'prefix'   => img_picto('', 'fa-child', 'class="pictofixedwidth valignmiddle paddingright"'),
 			'mainmenu' => 'agebf',
 			'leftmenu' => '',
 			'url'      => '/custom/agebf/agebfindex.php',
@@ -312,7 +313,7 @@ class modAgeBF extends DolibarrModules
 			'enabled'  => 'isModEnabled("agebf")',
 			'perms'    => '1',
 			'target'   => '',
-			'user'     => 2,   // 0=interne, 1=externe, 2=les deux
+			'user'     => 2,
 		);
 
 		// ── Sous-entrée gauche : Fête des enfants ────────────────────────────
@@ -320,6 +321,7 @@ class modAgeBF extends DolibarrModules
 			'fk_menu'  => 'fk_mainmenu=agebf',
 			'type'     => 'left',
 			'titre'    => 'Fête des enfants',
+			'prefix'   => img_picto('', 'fa-birthday-cake', 'class="pictofixedwidth valignmiddle paddingright"'),
 			'mainmenu' => 'agebf',
 			'leftmenu' => 'agebf_index',
 			'url'      => '/custom/agebf/agebfindex.php',
