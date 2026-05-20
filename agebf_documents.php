@@ -135,11 +135,11 @@ foreach ($rows as $row) {
 
 	// Composition de ménage
 	if ($row['has_compo']) {
-		print '<td class="center"><span style="color:#28a745;font-size:1.2em" title="Presente">&#10004;</span></td>';
+		print '<td class="center"><span style="color:#28a745;font-weight:bold">Fournie</span></td>';
 	} elseif ($row['nb'] > 0) {
-		print '<td class="center"><span style="color:#fd7e14;font-size:1.2em" title="Documents presents mais pas de composition detectee">?</span></td>';
+		print '<td class="center"><span style="color:#fd7e14;font-weight:bold">Manquante</span></td>';
 	} else {
-		print '<td class="center"><span style="color:#dc3545;font-size:1.2em" title="Aucun document">&#10008;</span></td>';
+		print '<td class="center"><span style="color:#dc3545;font-weight:bold">Aucun document</span></td>';
 	}
 
 	// Lien vers les documents du Tiers
@@ -158,9 +158,9 @@ print '</div>';
 // ── Légende ──────────────────────────────────────────────────────────────────
 print '<div style="margin-top:16px;font-size:0.9em;color:#666">';
 print '<b>Legende :</b> ';
-print '<span style="color:#28a745">&#10004;</span> Fichier avec "composition" ou "m&eacute;nage" dans le nom &nbsp;|&nbsp; ';
-print '<span style="color:#fd7e14">?</span> Documents presents mais nom non reconnu &nbsp;|&nbsp; ';
-print '<span style="color:#dc3545">&#10008;</span> Aucun document';
+print '<span style="color:#28a745;font-weight:bold">Fournie</span> = composition de m&eacute;nage d&eacute;tect&eacute;e &nbsp;|&nbsp; ';
+print '<span style="color:#fd7e14;font-weight:bold">Manquante</span> = des documents sont presents mais aucune composition de m&eacute;nage &nbsp;|&nbsp; ';
+print '<span style="color:#dc3545;font-weight:bold">Aucun document</span> = aucun fichier joint au Tiers';
 print '</div>';
 
 llxFooter();
