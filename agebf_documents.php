@@ -60,7 +60,7 @@ print '
 #agebf-modal-overlay.open { display:flex; }
 #agebf-modal-box {
     background:#fff; border-radius:6px; box-shadow:0 8px 32px rgba(0,0,0,.4);
-    width:94vw; height:92vh;
+    width:80vw; height:80vh;
     display:flex; flex-direction:column; overflow:hidden;
 }
 #agebf-modal-header {
