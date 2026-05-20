@@ -191,7 +191,7 @@ foreach ($rows as $row) {
 		foreach ($row['files'] as $f) {
 			$fname    = dol_escape_htmltag($f['name']);
 			$fileurl  = DOL_URL_ROOT . '/document.php?modulepart=societe&attachment=0'
-			          . '&file=' . urlencode('societe/' . (int)$row['id'] . '/' . $f['name']);
+			          . '&file=' . urlencode((int)$row['id'] . '/' . $f['name']);
 
 			print '<form method="POST" action="' . $url_base . '" style="display:flex;align-items:center;gap:8px;margin:4px 0">';
 			print '<input type="hidden" name="action"  value="rename">';
