@@ -189,15 +189,23 @@ foreach ($rows as $row) {
 		print '</div>';
 
 		foreach ($row['files'] as $f) {
-			$fname = dol_escape_htmltag($f['name']);
+			$fname    = dol_escape_htmltag($f['name']);
+			$fileurl  = DOL_URL_ROOT . '/document.php?modulepart=societe&attachment=0'
+			          . '&file=' . urlencode('societe/' . (int)$row['id'] . '/' . $f['name']);
+
 			print '<form method="POST" action="' . $url_base . '" style="display:flex;align-items:center;gap:8px;margin:4px 0">';
 			print '<input type="hidden" name="action"  value="rename">';
 			print '<input type="hidden" name="token"   value="' . newToken() . '">';
 			print '<input type="hidden" name="filtre"  value="' . dol_escape_htmltag($filtre) . '">';
 			print '<input type="hidden" name="socid"   value="' . (int)$row['id'] . '">';
 			print '<input type="hidden" name="oldname" value="' . $fname . '">';
-			print '<input type="text"   name="newname" value="' . $fname . '" ';
-			print '       style="width:380px;padding:3px 8px;font-size:0.9em;border:1px solid #ccc;border-radius:3px">';
+			// Bouton visualiser
+			print '<a href="' . $fileurl . '" target="_blank" title="Visualiser le fichier" ';
+			print '   style="display:inline-flex;align-items:center;padding:3px 10px;background:#6c757d;color:#fff;border-radius:3px;font-size:0.85em;text-decoration:none;white-space:nowrap">';
+			print img_picto('', 'fa-eye', 'class="paddingright"') . ' Voir</a>';
+			// Champ renommage
+			print '<input type="text" name="newname" value="' . $fname . '" ';
+			print '       style="width:340px;padding:3px 8px;font-size:0.9em;border:1px solid #ccc;border-radius:3px">';
 			print '<button type="submit" class="butAction" style="padding:3px 14px;font-size:0.85em;margin:0">Renommer</button>';
 			print '</form>';
 		}
