@@ -53,7 +53,7 @@ foreach ($tiers_list as $obj) {
 	// Détection composition de ménage (nom du fichier contient "compos" ou "menage" ou "ménage")
 	$has_compo = false;
 	foreach ($files as $f) {
-		if (preg_match('/compos|menage|m.nage/i', $f['name'])) {
+		if (preg_match('/composition|m[eé]nage/i', $f['name'])) {
 			$has_compo = true;
 			break;
 		}
@@ -151,7 +151,7 @@ print '</div>';
 // ── Légende ──────────────────────────────────────────────────────────────────
 print '<div style="margin-top:16px;font-size:0.9em;color:#666">';
 print '<b>Legende :</b> ';
-print '<span style="color:#28a745">&#10004;</span> Fichier avec "compos" ou "menage" dans le nom &nbsp;|&nbsp; ';
+print '<span style="color:#28a745">&#10004;</span> Fichier avec "composition" ou "m&eacute;nage" dans le nom &nbsp;|&nbsp; ';
 print '<span style="color:#fd7e14">?</span> Documents presents mais nom non reconnu &nbsp;|&nbsp; ';
 print '<span style="color:#dc3545">&#10008;</span> Aucun document';
 print '</div>';
