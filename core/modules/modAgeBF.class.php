@@ -72,7 +72,7 @@ class modAgeBF extends DolibarrModules
 		$this->editor_url = '';
 
 		// Possible values for version are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated', 'experimental_deprecated' or a version string like 'x.y.z'
-		$this->version = '2.0';
+		$this->version = '3.1';
 		// Url to the file with your last numberversion of this module
 		//$this->url_last_version = 'http://www.example.com/versionmodule.txt';
 
@@ -320,13 +320,30 @@ class modAgeBF extends DolibarrModules
 		$this->menu[$r++] = array(
 			'fk_menu'  => 'fk_mainmenu=agebf',
 			'type'     => 'left',
-			'titre'    => 'Fête des enfants',
+			'titre'    => 'Fete des enfants',
 			'prefix'   => img_picto('', 'fa-birthday-cake', 'class="pictofixedwidth valignmiddle paddingright"'),
 			'mainmenu' => 'agebf',
 			'leftmenu' => 'agebf_index',
 			'url'      => '/custom/agebf/agebfindex.php',
 			'langs'    => 'agebf@agebf',
 			'position' => 10,
+			'enabled'  => 'isModEnabled("agebf")',
+			'perms'    => '1',
+			'target'   => '',
+			'user'     => 2,
+		);
+
+		// ── Sous-entrée gauche : Documents ───────────────────────────────────
+		$this->menu[$r++] = array(
+			'fk_menu'  => 'fk_mainmenu=agebf',
+			'type'     => 'left',
+			'titre'    => 'Documents',
+			'prefix'   => img_picto('', 'fa-folder-open', 'class="pictofixedwidth valignmiddle paddingright"'),
+			'mainmenu' => 'agebf',
+			'leftmenu' => 'agebf_documents',
+			'url'      => '/custom/agebf/agebf_documents.php',
+			'langs'    => 'agebf@agebf',
+			'position' => 20,
 			'enabled'  => 'isModEnabled("agebf")',
 			'perms'    => '1',
 			'target'   => '',

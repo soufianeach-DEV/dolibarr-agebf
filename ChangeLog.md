@@ -1,5 +1,24 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 3.1 (2026-05-20)
+
+- Nouvelle page **Documents** (menu Helpy → Documents)
+  - Liste tous les Tiers avec le nombre de documents joints
+  - Detection de la composition de menage (nom de fichier contenant "compos" ou "menage")
+  - Indicateurs visuels OK / Manquant par Tiers
+  - Filtre "Sans composition seulement"
+  - Lien direct vers la page Documents de chaque Tiers
+- Version module mise a jour en 3.1 (refresh general Dolibarr)
+- ZIP : `module_agebf-3.1.zip`
+
+## 3.0 (2026-05-18)
+
+- Menu haut renomme **Helpy**
+- Icones Font Awesome : fa-child, fa-birthday-cake
+- Colonne Parent (Tiers) en premiere position
+- Tri alphabetique cliquable sur toutes les colonnes
+- ZIP format compatible Dolibarr : module_*-x.y*.zip
+
 ## 2.0 (2026-05-12)
 
 ### Refonte complète du modèle de données
