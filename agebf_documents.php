@@ -270,7 +270,9 @@ foreach ($rows as $row) {
 				? 'color:#28a745;font-weight:bold'
 				: 'color:#555';
 
-			$btn_voir = '<a href="javascript:void(0)" onclick="agebfOpenModal(' . json_encode($fileurl) . ',' . json_encode($f['name']) . ')" '
+			$btn_voir = '<a href="javascript:void(0)" onclick="agebfOpenModal('
+			          . htmlspecialchars(json_encode($fileurl), ENT_QUOTES) . ','
+			          . htmlspecialchars(json_encode($f['name']), ENT_QUOTES) . ')" '
 			          . 'style="display:inline-flex;align-items:center;padding:3px 10px;background:#6c757d;color:#fff;border-radius:3px;font-size:0.85em;text-decoration:none;white-space:nowrap">'
 			          . img_picto('', 'fa-eye', 'class="paddingright"') . ' Voir</a>';
 
