@@ -15,7 +15,7 @@ if (!$res) { die("Include of main fails"); }
 require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 
 $filtre = GETPOST('filtre', 'aZ09');
-if (!in_array($filtre, ['tous', 'manquants'])) $filtre = 'tous';
+if (!in_array($filtre, ['tous', 'manquants', 'avec'])) $filtre = 'tous';
 
 $url_base = DOL_URL_ROOT . '/custom/agebf/agebf_documents.php';
 
@@ -86,12 +86,18 @@ print '</table>';
 
 // ── Filtres ──────────────────────────────────────────────────────────────────
 print '<div style="margin-bottom:10px">';
-if ($filtre === 'manquants') {
-	print '<span class="butActionSelected">&#9888; Sans composition</span> ';
-	print '<a class="butAction" href="' . $url_base . '?filtre=tous">Voir tous les Tiers</a>';
+if ($filtre === 'tous') {
+	print '<span class="butActionSelected">Tous les Tiers</span> ';
+	print '<a class="butAction" href="' . $url_base . '?filtre=avec">&#10004; Avec composition</a> ';
+	print '<a class="butAction" href="' . $url_base . '?filtre=manquants">&#9888; Sans composition</a>';
+} elseif ($filtre === 'avec') {
+	print '<a class="butAction" href="' . $url_base . '?filtre=tous">Tous les Tiers</a> ';
+	print '<span class="butActionSelected">&#10004; Avec composition</span> ';
+	print '<a class="butAction" href="' . $url_base . '?filtre=manquants">&#9888; Sans composition</a>';
 } else {
-	print '<a class="butAction" href="' . $url_base . '?filtre=manquants">&#9888; Sans composition seulement</a> ';
-	print '<span class="butActionSelected">Tous les Tiers</span>';
+	print '<a class="butAction" href="' . $url_base . '?filtre=tous">Tous les Tiers</a> ';
+	print '<a class="butAction" href="' . $url_base . '?filtre=avec">&#10004; Avec composition</a> ';
+	print '<span class="butActionSelected">&#9888; Sans composition</span>';
 }
 print '</div>';
 
@@ -107,7 +113,8 @@ print '</tr>';
 $displayed = 0;
 foreach ($rows as $row) {
 	// Filtre
-	if ($filtre === 'manquants' && ($row['has_compo'] || $row['nb'] > 0)) continue;
+	if ($filtre === 'manquants' && $row['has_compo']) continue;
+	if ($filtre === 'avec' && !$row['has_compo']) continue;
 
 	$displayed++;
 	$style = ($row['nb'] == 0) ? ' style="background-color:#fff5f5"' : '';
