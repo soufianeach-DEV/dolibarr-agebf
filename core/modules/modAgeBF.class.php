@@ -333,11 +333,11 @@ class modAgeBF extends DolibarrModules
 			'user'     => 2,
 		);
 
-		// ── Sous-entrée gauche : Documents ───────────────────────────────────
+		// ── Sous-entrée gauche : Documents Tiers ────────────────────────────
 		$this->menu[$r++] = array(
 			'fk_menu'  => 'fk_mainmenu=agebf',
 			'type'     => 'left',
-			'titre'    => 'Documents',
+			'titre'    => 'Documents Tiers',
 			'prefix'   => img_picto('', 'fa-folder-open', 'class="pictofixedwidth valignmiddle paddingright"'),
 			'mainmenu' => 'agebf',
 			'leftmenu' => 'agebf_documents',
