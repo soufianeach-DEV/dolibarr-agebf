@@ -179,35 +179,57 @@ foreach ($rows as $row) {
 
 	print '</tr>';
 
-	// ── Zone renommage (admin + fichiers présents sans composition) ───────────
-	if ($user->admin && !$row['has_compo'] && $row['nb'] > 0) {
+	// ── Zone fichiers (tous les Tiers avec documents) ────────────────────────
+	if ($row['nb'] > 0) {
+		$bg_zone = $row['has_compo'] ? '#f0fff4' : '#fffdf0';
 		print '<tr>';
-		print '<td colspan="4" style="padding:6px 20px 10px 30px;background:#fffdf0;border-top:none">';
-		print '<div style="font-size:0.88em;color:#555;margin-bottom:6px">';
-		print '<b>Fichiers presents</b> — renommez un fichier pour qu\'il soit reconnu comme composition de m&eacute;nage ';
-		print '<span style="color:#888">(le nom doit contenir &laquo;&nbsp;composition&nbsp;&raquo; ou &laquo;&nbsp;m&eacute;nage&nbsp;&raquo;)</span>';
-		print '</div>';
+		print '<td colspan="4" style="padding:6px 20px 10px 30px;background:' . $bg_zone . ';border-top:none">';
+
+		if ($user->admin && !$row['has_compo']) {
+			// Admin + manquante : afficher aide renommage
+			print '<div style="font-size:0.88em;color:#555;margin-bottom:6px">';
+			print '<b>Fichiers presents</b> — renommez un fichier pour qu\'il soit reconnu comme composition de m&eacute;nage ';
+			print '<span style="color:#888">(le nom doit contenir &laquo;&nbsp;composition&nbsp;&raquo; ou &laquo;&nbsp;m&eacute;nage&nbsp;&raquo;)</span>';
+			print '</div>';
+		} else {
+			print '<div style="font-size:0.88em;color:#555;margin-bottom:6px"><b>Fichiers presents</b></div>';
+		}
 
 		foreach ($row['files'] as $f) {
-			$fname    = dol_escape_htmltag($f['name']);
-			$fileurl  = DOL_URL_ROOT . '/document.php?modulepart=societe&attachment=0'
-			          . '&file=' . urlencode((int)$row['id'] . '/' . $f['name']);
+			$fname   = dol_escape_htmltag($f['name']);
+			$fileurl = DOL_URL_ROOT . '/document.php?modulepart=societe&attachment=0'
+			         . '&file=' . urlencode((int)$row['id'] . '/' . $f['name']);
 
-			print '<form method="POST" action="' . $url_base . '" style="display:flex;align-items:center;gap:8px;margin:4px 0">';
-			print '<input type="hidden" name="action"  value="rename">';
-			print '<input type="hidden" name="token"   value="' . newToken() . '">';
-			print '<input type="hidden" name="filtre"  value="' . dol_escape_htmltag($filtre) . '">';
-			print '<input type="hidden" name="socid"   value="' . (int)$row['id'] . '">';
-			print '<input type="hidden" name="oldname" value="' . $fname . '">';
-			// Bouton visualiser
-			print '<a href="' . $fileurl . '" target="_blank" title="Visualiser le fichier" ';
-			print '   style="display:inline-flex;align-items:center;padding:3px 10px;background:#6c757d;color:#fff;border-radius:3px;font-size:0.85em;text-decoration:none;white-space:nowrap">';
-			print img_picto('', 'fa-eye', 'class="paddingright"') . ' Voir</a>';
-			// Champ renommage
-			print '<input type="text" name="newname" value="' . $fname . '" ';
-			print '       style="width:340px;padding:3px 8px;font-size:0.9em;border:1px solid #ccc;border-radius:3px">';
-			print '<button type="submit" class="butAction" style="padding:3px 14px;font-size:0.85em;margin:0">Renommer</button>';
-			print '</form>';
+			// Mettre en evidence le fichier composition
+			$is_compo = (bool) preg_match('/composition|m[eé]nage/i', $f['name']);
+			$name_style = $is_compo
+				? 'color:#28a745;font-weight:bold'
+				: 'color:#555';
+
+			if ($user->admin && !$row['has_compo']) {
+				// Admin + manquante : Voir + Renommer
+				print '<form method="POST" action="' . $url_base . '" style="display:flex;align-items:center;gap:8px;margin:4px 0">';
+				print '<input type="hidden" name="action"  value="rename">';
+				print '<input type="hidden" name="token"   value="' . newToken() . '">';
+				print '<input type="hidden" name="filtre"  value="' . dol_escape_htmltag($filtre) . '">';
+				print '<input type="hidden" name="socid"   value="' . (int)$row['id'] . '">';
+				print '<input type="hidden" name="oldname" value="' . $fname . '">';
+				print '<a href="' . $fileurl . '" target="_blank" ';
+				print '   style="display:inline-flex;align-items:center;padding:3px 10px;background:#6c757d;color:#fff;border-radius:3px;font-size:0.85em;text-decoration:none;white-space:nowrap">';
+				print img_picto('', 'fa-eye', 'class="paddingright"') . ' Voir</a>';
+				print '<input type="text" name="newname" value="' . $fname . '" ';
+				print '       style="width:320px;padding:3px 8px;font-size:0.9em;border:1px solid #ccc;border-radius:3px">';
+				print '<button type="submit" class="butAction" style="padding:3px 14px;font-size:0.85em;margin:0">Renommer</button>';
+				print '</form>';
+			} else {
+				// Tous : Voir uniquement
+				print '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">';
+				print '<a href="' . $fileurl . '" target="_blank" ';
+				print '   style="display:inline-flex;align-items:center;padding:3px 10px;background:#6c757d;color:#fff;border-radius:3px;font-size:0.85em;text-decoration:none;white-space:nowrap">';
+				print img_picto('', 'fa-eye', 'class="paddingright"') . ' Voir</a>';
+				print '<span style="font-size:0.9em;' . $name_style . '">' . $fname . '</span>';
+				print '</div>';
+			}
 		}
 
 		print '</td></tr>';
