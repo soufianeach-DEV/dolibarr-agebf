@@ -18,9 +18,9 @@
 #
 
 # Module label 'ModuleAgeBFName'
-ModuleAgeBFName = AgeBF
+ModuleAgeBFName = Helpy
 # Module description 'ModuleAgeBFDesc'
-ModuleAgeBFDesc = AgeBF description
+ModuleAgeBFDesc = Calcul age enfants, fete des enfants et suivi documents de menage — Bruxelles Formation
 
 #
 # Admin page
