@@ -50,6 +50,70 @@ if ($action === 'rename' && $user->admin) {
 
 llxHeader("", "Helpy — Documents Tiers", '', '', 0, 0, '', '', '', 'mod-agebf page-documents');
 
+// ── Modal visualisation ───────────────────────────────────────────────────────
+print '
+<style>
+#agebf-modal-overlay {
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
+    z-index:9999; align-items:center; justify-content:center;
+}
+#agebf-modal-overlay.open { display:flex; }
+#agebf-modal-box {
+    background:#fff; border-radius:6px; box-shadow:0 8px 32px rgba(0,0,0,.4);
+    width:82vw; max-width:1000px; height:88vh;
+    display:flex; flex-direction:column; overflow:hidden;
+}
+#agebf-modal-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 16px; background:#f5f5f5; border-bottom:1px solid #ddd;
+    font-weight:bold; font-size:.95em; color:#333;
+}
+#agebf-modal-header a {
+    font-size:.8em; font-weight:normal; color:#6c757d;
+    text-decoration:none; margin-right:12px;
+}
+#agebf-modal-header a:hover { text-decoration:underline; }
+#agebf-modal-close {
+    cursor:pointer; font-size:1.4em; color:#888; border:none;
+    background:none; line-height:1; padding:0 4px;
+}
+#agebf-modal-close:hover { color:#333; }
+#agebf-modal-iframe { flex:1; border:none; width:100%; }
+</style>
+
+<div id="agebf-modal-overlay">
+  <div id="agebf-modal-box">
+    <div id="agebf-modal-header">
+      <span id="agebf-modal-title">Document</span>
+      <div>
+        <a id="agebf-modal-newtab" href="#" target="_blank">&#x2197; Ouvrir dans un onglet</a>
+        <button id="agebf-modal-close" onclick="agebfCloseModal()" title="Fermer">&times;</button>
+      </div>
+    </div>
+    <iframe id="agebf-modal-iframe" src="about:blank"></iframe>
+  </div>
+</div>
+
+<script>
+function agebfOpenModal(url, filename) {
+    document.getElementById("agebf-modal-iframe").src = url;
+    document.getElementById("agebf-modal-title").textContent = filename;
+    document.getElementById("agebf-modal-newtab").href = url;
+    document.getElementById("agebf-modal-overlay").classList.add("open");
+}
+function agebfCloseModal() {
+    document.getElementById("agebf-modal-overlay").classList.remove("open");
+    document.getElementById("agebf-modal-iframe").src = "about:blank";
+}
+document.getElementById("agebf-modal-overlay").addEventListener("click", function(e) {
+    if (e.target === this) agebfCloseModal();
+});
+document.addEventListener("keydown", function(e) {
+    if (e.key === "Escape") agebfCloseModal();
+});
+</script>
+';
+
 print load_fiche_titre("Documents par Tiers", '', 'fa-folder-open');
 
 // Messages retour
@@ -206,6 +270,10 @@ foreach ($rows as $row) {
 				? 'color:#28a745;font-weight:bold'
 				: 'color:#555';
 
+			$btn_voir = '<a href="javascript:void(0)" onclick="agebfOpenModal(' . json_encode($fileurl) . ',' . json_encode($f['name']) . ')" '
+			          . 'style="display:inline-flex;align-items:center;padding:3px 10px;background:#6c757d;color:#fff;border-radius:3px;font-size:0.85em;text-decoration:none;white-space:nowrap">'
+			          . img_picto('', 'fa-eye', 'class="paddingright"') . ' Voir</a>';
+
 			if ($user->admin && !$row['has_compo']) {
 				// Admin + manquante : Voir + Renommer
 				print '<form method="POST" action="' . $url_base . '" style="display:flex;align-items:center;gap:8px;margin:4px 0">';
@@ -214,9 +282,7 @@ foreach ($rows as $row) {
 				print '<input type="hidden" name="filtre"  value="' . dol_escape_htmltag($filtre) . '">';
 				print '<input type="hidden" name="socid"   value="' . (int)$row['id'] . '">';
 				print '<input type="hidden" name="oldname" value="' . $fname . '">';
-				print '<a href="' . $fileurl . '" target="_blank" ';
-				print '   style="display:inline-flex;align-items:center;padding:3px 10px;background:#6c757d;color:#fff;border-radius:3px;font-size:0.85em;text-decoration:none;white-space:nowrap">';
-				print img_picto('', 'fa-eye', 'class="paddingright"') . ' Voir</a>';
+				print $btn_voir;
 				print '<input type="text" name="newname" value="' . $fname . '" ';
 				print '       style="width:320px;padding:3px 8px;font-size:0.9em;border:1px solid #ccc;border-radius:3px">';
 				print '<button type="submit" class="butAction" style="padding:3px 14px;font-size:0.85em;margin:0">Renommer</button>';
@@ -224,9 +290,7 @@ foreach ($rows as $row) {
 			} else {
 				// Tous : Voir uniquement
 				print '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">';
-				print '<a href="' . $fileurl . '" target="_blank" ';
-				print '   style="display:inline-flex;align-items:center;padding:3px 10px;background:#6c757d;color:#fff;border-radius:3px;font-size:0.85em;text-decoration:none;white-space:nowrap">';
-				print img_picto('', 'fa-eye', 'class="paddingright"') . ' Voir</a>';
+				print $btn_voir;
 				print '<span style="font-size:0.9em;' . $name_style . '">' . $fname . '</span>';
 				print '</div>';
 			}
