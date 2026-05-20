@@ -14,14 +14,47 @@ if (!$res) { die("Include of main fails"); }
 
 require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 
-$filtre = GETPOST('filtre', 'aZ09');
+$filtre  = GETPOST('filtre', 'aZ09');
 if (!in_array($filtre, ['tous', 'manquants', 'avec'])) $filtre = 'tous';
 
 $url_base = DOL_URL_ROOT . '/custom/agebf/agebf_documents.php';
 
+// ── Action : renommage de fichier (admin uniquement) ─────────────────────────
+$action  = GETPOST('action', 'aZ09');
+$msg_ok  = '';
+$msg_err = '';
+
+if ($action === 'rename' && $user->admin) {
+	$socid   = (int) GETPOST('socid', 'int');
+	$oldname = basename(GETPOST('oldname', 'nohtml'));
+	$newname = trim(basename(GETPOST('newname', 'nohtml')));
+
+	if ($socid > 0 && $oldname && $newname && $oldname !== $newname) {
+		$dir     = $conf->societe->dir_output . '/' . dol_sanitizeFileName($socid) . '/';
+		$oldpath = $dir . $oldname;
+		$newpath = $dir . $newname;
+
+		if (!file_exists($oldpath)) {
+			$msg_err = 'Fichier source introuvable : ' . dol_escape_htmltag($oldname);
+		} elseif (file_exists($newpath)) {
+			$msg_err = 'Un fichier avec ce nom existe deja : ' . dol_escape_htmltag($newname);
+		} else {
+			if (@rename($oldpath, $newpath)) {
+				$msg_ok = 'Fichier renomme avec succes : <b>' . dol_escape_htmltag($newname) . '</b>';
+			} else {
+				$msg_err = 'Echec du renommage — verifiez les permissions.';
+			}
+		}
+	}
+}
+
 llxHeader("", "Helpy — Documents Tiers", '', '', 0, 0, '', '', '', 'mod-agebf page-documents');
 
 print load_fiche_titre("Documents par Tiers", '', 'fa-folder-open');
+
+// Messages retour
+if ($msg_ok)  print '<div class="ok">' . $msg_ok . '</div>';
+if ($msg_err) print '<div class="error">' . $msg_err . '</div>';
 
 // ── Récupération de tous les Tiers ───────────────────────────────────────────
 $sql  = "SELECT rowid, nom FROM " . MAIN_DB_PREFIX . "societe";
@@ -41,16 +74,15 @@ while ($obj = $db->fetch_object($resql)) {
 $db->free($resql);
 
 // ── Pour chaque Tiers : compter les fichiers dans son dossier ────────────────
-$rows    = array();
-$nb_ok   = 0;
-$nb_ko   = 0;
+$rows  = array();
+$nb_ok = 0;
+$nb_ko = 0;
 
 foreach ($tiers_list as $obj) {
 	$dir   = $conf->societe->dir_output . '/' . dol_sanitizeFileName($obj->rowid) . '/';
 	$files = dol_dir_list($dir, 'files', 0, '', '(\.meta|_preview.*\.png)$');
 	$nb    = count($files);
 
-	// Détection composition de ménage (nom du fichier contient "compos" ou "menage" ou "ménage")
 	$has_compo = false;
 	foreach ($files as $f) {
 		if (preg_match('/composition|m[eé]nage/i', $f['name'])) {
@@ -67,6 +99,7 @@ foreach ($tiers_list as $obj) {
 		'nb'        => $nb,
 		'has_compo' => $has_compo,
 		'files'     => $files,
+		'dir'       => $dir,
 	);
 }
 
@@ -112,14 +145,13 @@ print '</tr>';
 
 $displayed = 0;
 foreach ($rows as $row) {
-	// Filtre
 	if ($filtre === 'manquants' && $row['has_compo']) continue;
-	if ($filtre === 'avec' && !$row['has_compo']) continue;
+	if ($filtre === 'avec'      && !$row['has_compo']) continue;
 
 	$displayed++;
-	$style = ($row['nb'] == 0) ? ' style="background-color:#fff5f5"' : '';
+	$bg = ($row['nb'] == 0) ? ' style="background-color:#fff5f5"' : '';
 
-	print '<tr class="oddeven"' . $style . '>';
+	print '<tr class="oddeven"' . $bg . '>';
 
 	// Nom du Tiers
 	print '<td><a href="' . DOL_URL_ROOT . '/societe/card.php?socid=' . ((int)$row['id']) . '">';
@@ -133,7 +165,7 @@ foreach ($rows as $row) {
 		print '<td class="center"><span style="color:#28a745;font-weight:bold">' . $row['nb'] . '</span></td>';
 	}
 
-	// Composition de ménage
+	// Statut composition
 	if ($row['has_compo']) {
 		print '<td class="center"><span style="color:#28a745;font-weight:bold">Fournie</span></td>';
 	} elseif ($row['nb'] > 0) {
@@ -142,10 +174,36 @@ foreach ($rows as $row) {
 		print '<td class="center"><span style="color:#dc3545;font-weight:bold">Aucun document</span></td>';
 	}
 
-	// Lien vers les documents du Tiers
+	// Lien fiche
 	print '<td class="center"><a href="' . DOL_URL_ROOT . '/societe/document.php?socid=' . ((int)$row['id']) . '">Documents</a></td>';
 
 	print '</tr>';
+
+	// ── Zone renommage (admin + fichiers présents sans composition) ───────────
+	if ($user->admin && !$row['has_compo'] && $row['nb'] > 0) {
+		print '<tr>';
+		print '<td colspan="4" style="padding:6px 20px 10px 30px;background:#fffdf0;border-top:none">';
+		print '<div style="font-size:0.88em;color:#555;margin-bottom:6px">';
+		print '<b>Fichiers presents</b> — renommez un fichier pour qu\'il soit reconnu comme composition de m&eacute;nage ';
+		print '<span style="color:#888">(le nom doit contenir &laquo;&nbsp;composition&nbsp;&raquo; ou &laquo;&nbsp;m&eacute;nage&nbsp;&raquo;)</span>';
+		print '</div>';
+
+		foreach ($row['files'] as $f) {
+			$fname = dol_escape_htmltag($f['name']);
+			print '<form method="POST" action="' . $url_base . '" style="display:flex;align-items:center;gap:8px;margin:4px 0">';
+			print '<input type="hidden" name="action"  value="rename">';
+			print '<input type="hidden" name="token"   value="' . newToken() . '">';
+			print '<input type="hidden" name="filtre"  value="' . dol_escape_htmltag($filtre) . '">';
+			print '<input type="hidden" name="socid"   value="' . (int)$row['id'] . '">';
+			print '<input type="hidden" name="oldname" value="' . $fname . '">';
+			print '<input type="text"   name="newname" value="' . $fname . '" ';
+			print '       style="width:380px;padding:3px 8px;font-size:0.9em;border:1px solid #ccc;border-radius:3px">';
+			print '<button type="submit" class="butAction" style="padding:3px 14px;font-size:0.85em;margin:0">Renommer</button>';
+			print '</form>';
+		}
+
+		print '</td></tr>';
+	}
 }
 
 if ($displayed === 0) {
