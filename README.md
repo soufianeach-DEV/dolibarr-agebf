@@ -3,7 +3,7 @@
 > Module custom développé dans le cadre d'un stage chez **Bruxelles Formation**.
 
 **Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
-**Version :** 3.1  
+**Version :** 3.2  
 **Compatibilité :** Dolibarr 19+, PHP 8.0+
 
 ---
@@ -56,7 +56,7 @@ agebf/
 ├── agebf_documents.php               # Documents : composition de menage par Tiers
 ├── core/
 │   └── modules/
-│       └── modAgeBF.class.php        # Descripteur v3.1 (cron, extrafields, menus)
+│       └── modAgeBF.class.php        # Descripteur v3.2 (cron, extrafields, menus)
 ├── class/
 │   └── agebf.class.php               # Logique de calcul + propagation vers Tiers
 ├── admin/
@@ -77,7 +77,7 @@ agebf/
 
 ### Méthode 1 — ZIP via l'interface Dolibarr (recommandée)
 
-1. Télécharger **`module_agebf-3.1.zip`** depuis la [page Releases](https://github.com/soufianeach-DEV/dolibarr-agebf/releases)
+1. Télécharger **`module_agebf-3.2.zip`** depuis la [page Releases](https://github.com/soufianeach-DEV/dolibarr-agebf/releases)
 2. Dans Dolibarr : **Configuration → Modules/Applications**
 3. Cliquer sur l'onglet **"Déployer/Installer un module externe"**
 4. Choisir le fichier ZIP → **Envoyer le fichier**

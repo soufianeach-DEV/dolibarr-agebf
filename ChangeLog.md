@@ -1,5 +1,16 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 3.2 (2026-05-20)
+
+- Module renomme **Helpy** dans la liste des modules (Configuration → Modules/Applications)
+- Menu gauche renomme **Documents Tiers** (plus explicite)
+- Indicateurs texte sur la page Documents : **Fournie** / **Manquante** / **Aucun document**
+- Filtre Documents corrige : 3 boutons (Tous / Avec composition / Sans composition)
+- Visualisation des fichiers directement dans un **popup modal** (80% de l'ecran)
+- Renommage de fichier inline pour les admins sur les lignes "Manquante"
+- Bouton **Voir** disponible sur tous les Tiers ayant des documents
+- ZIP : `module_agebf-3.2.zip`
+
 ## 3.1 (2026-05-20)
 
 - Nouvelle page **Documents** (menu Helpy → Documents)
