@@ -24,6 +24,10 @@ $action  = GETPOST('action', 'aZ09');
 $msg_ok  = '';
 $msg_err = '';
 
+if (GETPOST('renamed', 'int') == 1) {
+	$msg_ok = 'Fichier renomme avec succes : <b>' . dol_escape_htmltag(GETPOST('newname', 'nohtml')) . '</b>';
+}
+
 if ($action === 'rename' && $user->admin) {
 	$socid   = (int) GETPOST('socid', 'int');
 	$oldname = basename(GETPOST('oldname', 'nohtml'));
@@ -47,8 +51,10 @@ if ($action === 'rename' && $user->admin) {
 				         . " WHERE filename = '" . $db->escape($oldname) . "'"
 				         . " AND src_object_type = 'societe'"
 				         . " AND src_object_id = " . (int)$socid;
-				$db->query($sql_ecm); // on ignore l'erreur si la table n'existe pas
-				$msg_ok = 'Fichier renomme avec succes : <b>' . dol_escape_htmltag($newname) . '</b>';
+				$db->query($sql_ecm);
+				// ── Redirect GET pour éviter "Confirmer le nouvel envoi" au retour ──
+				header('Location: ' . $url_base . '?filtre=' . urlencode($filtre) . '&renamed=1&newname=' . urlencode($newname));
+				exit;
 			} else {
 				$msg_err = 'Echec du renommage — verifiez les permissions.';
 			}
