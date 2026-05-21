@@ -27,6 +27,9 @@ $msg_err = '';
 if (GETPOST('renamed', 'int') == 1) {
 	$msg_ok = 'Fichier renomme avec succes : <b>' . dol_escape_htmltag(GETPOST('newname', 'nohtml')) . '</b>';
 }
+if (GETPOST('uploaded', 'int') == 1) {
+	$msg_ok = 'Document ajoute avec succes : <b>' . dol_escape_htmltag(GETPOST('filename', 'nohtml')) . '</b>';
+}
 
 if ($action === 'rename' && $user->admin) {
 	$socid   = (int) GETPOST('socid', 'int');
@@ -58,6 +61,41 @@ if ($action === 'rename' && $user->admin) {
 			} else {
 				$msg_err = 'Echec du renommage — verifiez les permissions.';
 			}
+		}
+	}
+}
+
+// ── Action : ajout de document (Tiers sans documents) ────────────────────────
+if ($action === 'upload'
+	&& !empty($_FILES['agebf_file']['name'])
+	&& $_FILES['agebf_file']['error'] === UPLOAD_ERR_OK) {
+
+	$socid_up = (int) GETPOST('socid', 'int');
+	if ($socid_up > 0) {
+		$dir_up = $conf->societe->dir_output . '/' . dol_sanitizeFileName($socid_up) . '/';
+		if (!is_dir($dir_up)) {
+			dol_mkdir($dir_up);
+		}
+		$filename_up = dol_sanitizeFileName(basename($_FILES['agebf_file']['name']));
+		$destpath    = $dir_up . $filename_up;
+
+		if (move_uploaded_file($_FILES['agebf_file']['tmp_name'], $destpath)) {
+			// ── Insérer dans llx_ecm_files pour que Dolibarr voie le fichier ──
+			$label_up    = preg_replace('/\.[^.]+$/', '', $filename_up);
+			$filepath_up = 'societe/' . $socid_up;
+			$sql_ins = "INSERT INTO " . MAIN_DB_PREFIX . "ecm_files"
+			         . " (label, entity, filepath, filename, src_object_type, src_object_id, gen_or_uploaded, date_c, fk_user_c)"
+			         . " VALUES ('" . $db->escape($label_up) . "', " . (int)$conf->entity
+			         . ", '" . $db->escape($filepath_up) . "'"
+			         . ", '" . $db->escape($filename_up) . "'"
+			         . ", 'societe', " . (int)$socid_up
+			         . ", 'uploaded', NOW(), " . (int)$user->id . ")";
+			$db->query($sql_ins);
+			// ── Redirect GET pour éviter "Confirmer le nouvel envoi" au retour ──
+			header('Location: ' . $url_base . '?filtre=' . urlencode($filtre) . '&uploaded=1&filename=' . urlencode($filename_up));
+			exit;
+		} else {
+			$msg_err = "Echec de l'envoi du fichier. Verifiez les permissions du dossier.";
 		}
 	}
 }
@@ -318,6 +356,22 @@ foreach ($rows as $row) {
 			}
 		}
 
+		print '</td></tr>';
+	}
+
+	// ── Zone upload (Tiers sans aucun document) ───────────────────────────────
+	if ($row['nb'] == 0) {
+		print '<tr>';
+		print '<td colspan="4" style="padding:6px 20px 10px 30px;background:#fff5f5;border-top:none">';
+		print '<form method="POST" action="' . $url_base . '" enctype="multipart/form-data" style="display:flex;align-items:center;gap:8px;margin:4px 0">';
+		print '<input type="hidden" name="action" value="upload">';
+		print '<input type="hidden" name="token"  value="' . newToken() . '">';
+		print '<input type="hidden" name="filtre" value="' . dol_escape_htmltag($filtre) . '">';
+		print '<input type="hidden" name="socid"  value="' . (int)$row['id'] . '">';
+		print '<input type="file" name="agebf_file" style="font-size:0.9em">';
+		print '<button type="submit" style="display:inline-flex;align-items:center;padding:3px 12px;background:#28a745;color:#fff;border:none;border-radius:3px;font-size:0.85em;cursor:pointer">';
+		print img_picto('', 'fa-upload', 'class="paddingright"') . ' Ajouter document</button>';
+		print '</form>';
 		print '</td></tr>';
 	}
 }
