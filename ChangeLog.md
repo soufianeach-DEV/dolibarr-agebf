@@ -1,14 +1,24 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 3.2 (2026-05-20)
+## 3.2 (2026-05-21)
+
+### Page Documents — Tiers
 
 - Module renomme **Helpy** dans la liste des modules (Configuration → Modules/Applications)
 - Menu gauche renomme **Documents Tiers** (plus explicite)
-- Indicateurs texte sur la page Documents : **Fournie** / **Manquante** / **Aucun document**
-- Filtre Documents corrige : 3 boutons (Tous / Avec composition / Sans composition)
-- Visualisation des fichiers directement dans un **popup modal** (80% de l'ecran)
-- Renommage de fichier inline pour les admins sur les lignes "Manquante"
-- Bouton **Voir** disponible sur tous les Tiers ayant des documents
+- Indicateurs texte : **Fournie** (vert) / **Manquante** (orange) / **Aucun document** (rouge)
+- Filtre 3 boutons : **Tous les Tiers** / **Avec composition** / **Sans composition**
+- Bandeau de statistiques etendu : Total / Fournie / Manquante / Aucun document
+- Visualisation des fichiers dans un **popup modal** (80 % de l'ecran) avec bouton Voir
+- Renommage de fichier inline pour les admins (lignes "Manquante") avec mise a jour `llx_ecm_files`
+- Bouton **Voir** sur tous les Tiers ayant des documents (composition valide ou non)
+- **Bouton Ajouter document** pour les Tiers sans aucun fichier joint :
+  - Formulaire d'upload integre directement dans le tableau
+  - Deplacement du fichier vers `documents/societe/[id]/`
+  - Insertion automatique dans `llx_ecm_files` (visible dans l'onglet natif Dolibarr)
+  - Detection immediate : si le nom contient "composition" ou "menage" → statut **Fournie** a la validation
+- Correction POST-Redirect-GET sur renommage et upload (supprime le dialogue "Confirmer le renvoi")
+- Regex de detection renforcee : `/composi?tion|m[ee]nage/i` (tolerant les fautes de frappe)
 - ZIP : `module_agebf-3.2.zip`
 
 ## 3.1 (2026-05-20)

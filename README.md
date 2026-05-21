@@ -110,7 +110,7 @@ Après activation, le menu **Helpy** apparaît dans la barre du haut avec deux s
 | Page | Accès | Description |
 |---|---|---|
 | Fête des enfants | Helpy → Fête des enfants | Liste des enfants invités, stats, export CSV |
-| Documents | Helpy → Documents | Suivi des compositions de ménage par Tiers |
+| Documents | Helpy → Documents Tiers | Suivi des compositions de ménage par Tiers |
 
 ### Page Fête des enfants
 
@@ -121,15 +121,19 @@ Après activation, le menu **Helpy** apparaît dans la barre du haut avec deux s
 | Tableau | Tiers (parent), Nom, Prénom, Genre, Âge, Case fête — **tri cliquable** |
 | Export CSV | Télécharge la liste en `.csv` (UTF-8 + BOM Excel, nom dynamique par année) |
 
-### Page Documents
+### Page Documents Tiers
 
 | Élément | Description |
 |---|---|
-| Stats | Total Tiers, avec documents, sans documents |
-| Tableau | Tiers, nb documents, présence composition de ménage |
-| Indicateurs | ✔ vert = trouvé / ? orange = docs mais nom non reconnu / ✘ rouge = aucun doc |
-| Filtre | "Sans composition seulement" pour identifier les manquants |
-| Détection | Fichier contenant "composition" ou "ménage" dans son nom |
+| Bandeau stats | Total Tiers / Composition fournie / Composition manquante / Aucun document |
+| Filtre | 3 boutons : **Tous** / **Avec composition** / **Sans composition** |
+| Tableau | Tiers, nb documents, statut composition, lien fiche |
+| Indicateurs | **Fournie** (vert) / **Manquante** (orange) / **Aucun document** (rouge) |
+| Bouton Voir | Ouvre le fichier dans un popup modal (80 % de l'écran) |
+| Renommage admin | Sur les lignes "Manquante", un admin peut renommer le fichier inline |
+| Ajout document | Sur les Tiers sans aucun fichier : formulaire d'upload intégré dans le tableau |
+| Détection | Fichier contenant "composition", "compostion" ou "ménage" dans son nom |
+| Sync Dolibarr | Tout ajout / renommage met à jour `llx_ecm_files` (onglet Documents natif) |
 
 ### Automatisation quotidienne
 
