@@ -165,7 +165,7 @@ foreach ($tiers_list as $obj) {
 
 	$has_compo = false;
 	foreach ($files as $f) {
-		if (preg_match('/composition|m[eé]nage/i', $f['name'])) {
+		if (preg_match('/composi?tion|m[eé]nage/i', $f['name'])) {
 			$has_compo = true;
 			break;
 		}
@@ -273,7 +273,7 @@ foreach ($rows as $row) {
 			// Admin + manquante : afficher aide renommage
 			print '<div style="font-size:0.88em;color:#555;margin-bottom:6px">';
 			print '<b>Fichiers presents</b> — renommez un fichier pour qu\'il soit reconnu comme composition de m&eacute;nage ';
-			print '<span style="color:#888">(le nom doit contenir &laquo;&nbsp;composition&nbsp;&raquo; ou &laquo;&nbsp;m&eacute;nage&nbsp;&raquo;)</span>';
+			print '<span style="color:#888">(le nom doit contenir &laquo;&nbsp;composition&nbsp;&raquo;, &laquo;&nbsp;compostion&nbsp;&raquo; ou &laquo;&nbsp;m&eacute;nage&nbsp;&raquo;)</span>';
 			print '</div>';
 		} else {
 			print '<div style="font-size:0.88em;color:#555;margin-bottom:6px"><b>Fichiers presents</b></div>';
@@ -285,7 +285,7 @@ foreach ($rows as $row) {
 			         . '&file=' . urlencode((int)$row['id'] . '/' . $f['name']);
 
 			// Mettre en evidence le fichier composition
-			$is_compo = (bool) preg_match('/composition|m[eé]nage/i', $f['name']);
+			$is_compo = (bool) preg_match('/composi?tion|m[eé]nage/i', $f['name']);
 			$name_style = $is_compo
 				? 'color:#28a745;font-weight:bold'
 				: 'color:#555';
