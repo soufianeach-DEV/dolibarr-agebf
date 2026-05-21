@@ -40,6 +40,14 @@ if ($action === 'rename' && $user->admin) {
 			$msg_err = 'Un fichier avec ce nom existe deja : ' . dol_escape_htmltag($newname);
 		} else {
 			if (@rename($oldpath, $newpath)) {
+				// ── Mettre à jour llx_ecm_files pour que Dolibarr retrouve le fichier ──
+				$sql_ecm = "UPDATE " . MAIN_DB_PREFIX . "ecm_files"
+				         . " SET filename = '" . $db->escape($newname) . "'"
+				         . ", label = '" . $db->escape(preg_replace('/\.[^.]+$/', '', $newname)) . "'"
+				         . " WHERE filename = '" . $db->escape($oldname) . "'"
+				         . " AND src_object_type = 'societe'"
+				         . " AND src_object_id = " . (int)$socid;
+				$db->query($sql_ecm); // on ignore l'erreur si la table n'existe pas
 				$msg_ok = 'Fichier renomme avec succes : <b>' . dol_escape_htmltag($newname) . '</b>';
 			} else {
 				$msg_err = 'Echec du renommage — verifiez les permissions.';
@@ -138,9 +146,11 @@ while ($obj = $db->fetch_object($resql)) {
 $db->free($resql);
 
 // ── Pour chaque Tiers : compter les fichiers dans son dossier ────────────────
-$rows  = array();
-$nb_ok = 0;
-$nb_ko = 0;
+$rows        = array();
+$nb_ok       = 0;  // avec au moins 1 document
+$nb_ko       = 0;  // sans aucun document
+$nb_fournie  = 0;  // composition présente
+$nb_manquante = 0; // docs présents mais composition manquante
 
 foreach ($tiers_list as $obj) {
 	$dir   = $conf->societe->dir_output . '/' . dol_sanitizeFileName($obj->rowid) . '/';
@@ -156,6 +166,8 @@ foreach ($tiers_list as $obj) {
 	}
 
 	if ($nb > 0) $nb_ok++; else $nb_ko++;
+	if ($has_compo) $nb_fournie++;
+	elseif ($nb > 0) $nb_manquante++;
 
 	$rows[] = array(
 		'id'        => $obj->rowid,
@@ -172,11 +184,13 @@ $total = count($rows);
 print '<div class="fichecenter">';
 print '<table class="border centpercent tableforfield" style="margin-bottom:12px">';
 print '<tr>';
-print '  <td class="titlefield center" style="width:25%">Total Tiers</td>';
+print '  <td class="titlefield center">Total Tiers</td>';
 print '  <td class="center" style="font-weight:bold">' . $total . '</td>';
-print '  <td class="titlefield center" style="width:25%;color:#28a745">Avec documents</td>';
-print '  <td class="center" style="font-weight:bold;color:#28a745">' . $nb_ok . '</td>';
-print '  <td class="titlefield center" style="width:25%;color:#dc3545">Sans documents</td>';
+print '  <td class="titlefield center" style="color:#28a745">Composition fournie</td>';
+print '  <td class="center" style="font-weight:bold;color:#28a745">' . $nb_fournie . '</td>';
+print '  <td class="titlefield center" style="color:#fd7e14">Composition manquante</td>';
+print '  <td class="center" style="font-weight:bold;color:#fd7e14">' . $nb_manquante . '</td>';
+print '  <td class="titlefield center" style="color:#dc3545">Aucun document</td>';
 print '  <td class="center" style="font-weight:bold;color:#dc3545">' . $nb_ko . '</td>';
 print '</tr>';
 print '</table>';
