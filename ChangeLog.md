@@ -1,6 +1,6 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 3.3 (2026-05-21)
+## 3.4 (2026-05-21)
 
 ### Nouvelle page — Suivi des packs ASBL
 
@@ -16,7 +16,7 @@
 - Recherche libre (Tiers, pack, OGM, bénéficiaire)
 - Bandeau de statistiques : total factures / soldées / partielles / impayées / montant attendu vs reçu
 - Légende colorée par type de pack (badge couleur)
-- ZIP : `module_agebf-3.3.zip`
+- ZIP : `module_agebf-3.4.zip`
 
 ## 3.2 (2026-05-21)
 
