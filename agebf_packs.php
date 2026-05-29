@@ -218,12 +218,17 @@ foreach ($rows_filtered as $r) {
 		  . dol_escape_htmltag($r->communication_structuree) . '</code>'
 		: '<span style="color:#aaa">—</span>';
 
-	// Badge pack
+	// Badge pack — nomenclature Bruxelles Formation
 	$pack_colors = [
-		'PACK-MUT' => '#0d6efd',
-		'PACK-HOS' => '#6f42c1',
-		'PACK-LUN' => '#20c997',
-		'PACK-DEN' => '#fd7e14',
+		'PACK-SANTE'  => '#0d6efd',  // bleu
+		'PACK-LUN'    => '#20c997',  // vert menthe
+		'PACK-NAIS'   => '#e83e8c',  // rose
+		'PACK-SPORT'  => '#fd7e14',  // orange
+		'HOSPI-18-20' => '#6f42c1',  // violet
+		'HOSPI-21-24' => '#6f42c1',  // violet
+		'HOSPI-BEAU'  => '#8540c4',  // violet clair
+		'IND-FUN'     => '#343a40',  // gris foncé
+		'DEPART-PEN'  => '#6c757d',  // gris
 	];
 	$pack_color = $pack_colors[$r->pack_ref] ?? '#6c757d';
 	$pack_badge = '<span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:0.8em;font-weight:bold;background:' . $pack_color . ';color:#fff">'

@@ -1,5 +1,16 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 3.5 (2026-05-29)
+
+- Nomenclature produits alignée sur la réalité Bruxelles Formation :
+  `Pack santé`, `Pack lunettes`, `Pack naissance`, `Pack sport & culture`,
+  `Montant_quote_part_enfant_18-20`, `Montant_quote_part_enfant_21-24`,
+  `Montant_quote_part_beaux_enfants_18-20`, `Indemnité funéraire`, `Divers_depart_pension`
+- Tarifs réels BF : 90€ / 150€ / 35€ / 70€ / 180€ / 210€ / 250€ / 125€
+- Référence SEPA alignée sur le format BF : `T2605XXX`
+- Badge couleur par type de pack mis à jour (9 types distincts)
+- ZIP : `module_agebf-3.5.zip`
+
 ## 3.4 (2026-05-21)
 
 ### Nouvelle page — Suivi des packs ASBL
