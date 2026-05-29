@@ -3,7 +3,7 @@
 > Module custom développé dans le cadre d'un stage chez **Bruxelles Formation**.
 
 **Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
-**Version :** 3.2  
+**Version :** 3.3  
 **Compatibilité :** Dolibarr 19+, PHP 8.0+
 
 ---
@@ -111,6 +111,7 @@ Après activation, le menu **Helpy** apparaît dans la barre du haut avec deux s
 |---|---|---|
 | Fête des enfants | Helpy → Fête des enfants | Liste des enfants invités, stats, export CSV |
 | Documents | Helpy → Documents Tiers | Suivi des compositions de ménage par Tiers |
+| Suivi des packs | Helpy → Suivi des packs | Suivi des factures et paiements packs ASBL |
 
 ### Page Fête des enfants
 
@@ -134,6 +135,18 @@ Après activation, le menu **Helpy** apparaît dans la barre du haut avec deux s
 | Ajout document | Sur les Tiers sans aucun fichier : formulaire d'upload intégré dans le tableau |
 | Détection | Fichier contenant "composition", "compostion" ou "ménage" dans son nom |
 | Sync Dolibarr | Tout ajout / renommage met à jour `llx_ecm_files` (onglet Documents natif) |
+
+### Page Suivi des packs
+
+| Élément | Description |
+|---|---|
+| Bandeau stats | Total / Soldées / Partielles / Impayées / Montant attendu vs reçu |
+| Filtre | Par année + par statut de paiement |
+| Recherche | Tiers, pack, OGM, bénéficiaire |
+| Tableau | Pack (badge couleur) / Tiers + bénéficiaire / N° facture / OGM / Date / Montant / Payé / Statut / Dernier paiement |
+| Statuts | **Soldée** (3/3) / **Partielle** (1/3 ou 2/3) / **Impayée** (aucun versement) |
+| Liens | Fiche facture Dolibarr + mouvement bancaire SEPA |
+| OGM | Communication structurée belge `+++NNN/NNNN/NNNNN+++` extraite de la facture |
 
 ### Automatisation quotidienne
 

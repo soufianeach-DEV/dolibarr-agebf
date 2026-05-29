@@ -1,5 +1,23 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 3.3 (2026-05-21)
+
+### Nouvelle page — Suivi des packs ASBL
+
+- Nouvelle entrée de menu **Suivi des packs** (Helpy → Suivi des packs)
+- Page centralisant les factures liées aux packs vendus par l'ASBL partenaire de Bruxelles Formation
+- Packs disponibles : **Mutuelle**, **Hospitalisation**, **Lunettes**, **Dentaire**
+- Un Tiers peut avoir plusieurs packs à son nom (ex. un pack par membre de la famille)
+- **Bénéficiaire** du pack distinct du Tiers payeur (extrafield sur la facture)
+- **Communication structurée belge (OGM)** au format `+++NNN/NNNN/NNNNN+++` — extrafield sur la facture
+- Suivi du paiement en 3 versements : **Soldée** / **Partielle** / **Impayée**
+- Lien direct vers la fiche facture Dolibarr et vers le mouvement bancaire SEPA
+- Filtre par **année** et par **statut de paiement**
+- Recherche libre (Tiers, pack, OGM, bénéficiaire)
+- Bandeau de statistiques : total factures / soldées / partielles / impayées / montant attendu vs reçu
+- Légende colorée par type de pack (badge couleur)
+- ZIP : `module_agebf-3.3.zip`
+
 ## 3.2 (2026-05-21)
 
 ### Page Documents — Tiers

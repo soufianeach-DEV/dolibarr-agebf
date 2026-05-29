@@ -72,7 +72,7 @@ class modAgeBF extends DolibarrModules
 		$this->editor_url = '';
 
 		// Possible values for version are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated', 'experimental_deprecated' or a version string like 'x.y.z'
-		$this->version = '3.2';
+		$this->version = '3.3';
 		// Url to the file with your last numberversion of this module
 		//$this->url_last_version = 'http://www.example.com/versionmodule.txt';
 
@@ -344,6 +344,23 @@ class modAgeBF extends DolibarrModules
 			'url'      => '/custom/agebf/agebf_documents.php',
 			'langs'    => 'agebf@agebf',
 			'position' => 20,
+			'enabled'  => 'isModEnabled("agebf")',
+			'perms'    => '1',
+			'target'   => '',
+			'user'     => 2,
+		);
+
+		// ── Sous-entrée gauche : Suivi des packs ─────────────────────────────
+		$this->menu[$r++] = array(
+			'fk_menu'  => 'fk_mainmenu=agebf',
+			'type'     => 'left',
+			'titre'    => 'Suivi des packs',
+			'prefix'   => img_picto('', 'fa-file-invoice-dollar', 'class="pictofixedwidth valignmiddle paddingright"'),
+			'mainmenu' => 'agebf',
+			'leftmenu' => 'agebf_packs',
+			'url'      => '/custom/agebf/agebf_packs.php',
+			'langs'    => 'agebf@agebf',
+			'position' => 30,
 			'enabled'  => 'isModEnabled("agebf")',
 			'perms'    => '1',
 			'target'   => '',
