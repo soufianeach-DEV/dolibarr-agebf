@@ -422,21 +422,29 @@ foreach ($rows_filtered as $r) {
         $lien_pay = '<span style="color:#aaa">—</span>';
     }
 
-    // Bouton Préparer virement bancaire (uniquement si non soldée)
-    $vir_url = DOL_URL_ROOT . '/fourn/paiement/card.php?action=create&facid=' . (int)$r->fac_id;
+    // Bouton Préparer virement bancaire + lien vérification écriture
+    $vir_url    = DOL_URL_ROOT . '/fourn/paiement/card.php?action=create&facid=' . (int)$r->fac_id;
+    $ecr_url    = DOL_URL_ROOT . '/compta/bank/bankentries_list.php?account=1&search_description='
+                . urlencode($r->fac_ref);
+    $ecr_link   = '<br><a href="' . $ecr_url . '" target="_blank"'
+                . ' style="font-size:0.78em;color:#6c757d;text-decoration:none;white-space:nowrap"'
+                . ' title="Voir les &eacute;critures bancaires correspondantes">'
+                . img_picto('', 'fa-search', 'style="font-size:0.85em"') . ' &Eacute;critures</a>';
     if ($r->paye == 1) {
-        $vir_btn = '<span style="color:#28a745;font-size:0.82em">' . img_picto('', 'fa-check-circle', '') . ' Soldée</span>';
+        $vir_btn = '<span style="color:#28a745;font-size:0.82em">' . img_picto('', 'fa-check-circle', '') . ' Sold&eacute;e</span>'
+                 . $ecr_link;
     } else {
         $vir_btn = '<a href="' . $vir_url . '" style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;'
                  . 'background:#17a2b8;color:#fff;border-radius:3px;font-size:0.82em;text-decoration:none;white-space:nowrap">'
-                 . img_picto('', 'fa-university', '') . ' Pr&eacute;parer virement</a>';
+                 . img_picto('', 'fa-university', '') . ' Pr&eacute;parer virement</a>'
+                 . $ecr_link;
     }
 
     print '<tr class="oddeven">';
     print '<td>' . $pack_badge . '</td>';
     print '<td>' . $lien_tiers . '</td>';
     print '<td style="white-space:nowrap">' . $lien_fac . '</td>';
-    print '<td style="font-family:monospace;font-size:0.9em">' . $ogm_cell . '</td>';
+    print '<td style="font-family:monospace;font-size:1em;letter-spacing:0.03em">' . $ogm_cell . '</td>';
     print '<td class="center">' . dol_print_date($db->jdate($r->date_facture), 'day') . '</td>';
     print '<td class="right" style="font-weight:bold;white-space:nowrap">' . price($r->montant) . '&nbsp;&euro;</td>';
 
