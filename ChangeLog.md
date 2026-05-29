@@ -1,5 +1,33 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 3.6 (2026-05-29)
+
+### Suivi des packs — migration factures fournisseurs + virement bancaire
+
+- Migration du modèle de données : `llx_facture` → `llx_facture_fourn` (factures fournisseurs)
+  — aligne le module sur la réalité BF (l'ASBL paie des factures fourn, les Tiers remboursent)
+- Paiements lus depuis `llx_paiementfourn` / `llx_paiementfourn_facturefourn`
+- Référence facture au format BF réel : `S02605-XXXX`
+- 6 nouveaux types de packs hospitalisation :
+  `Montant_quote_part_beaux_enfants_-_de_18_ans` (36€),
+  `Montant_quote_part_beaux_enfants_18-20_ans` (170€),
+  `Montant_quote_part_beaux_enfants_de_18_ans` (65€),
+  `Montant_quote_part_enfant_de_-_de_18_ans` (47€),
+  `Montant_quote_part_enfant_de_19-20_ans` (194€),
+  `Montant_quote_part_agent_de_21-64_ans` (137€)
+- Nouvelle colonne **Virement** :
+  — bouton "Préparer virement" → fiche facture fournisseur Dolibarr (section paiement)
+  — badge "Soldée" si déjà payée
+  — lien "Écritures" sous chaque ligne → liste des écritures bancaires filtrée par ref facture
+- Communication structurée (OGM) : taille de police augmentée (`1.2em`, semi-gras)
+- Lien "Voir" modal et fiche pointe vers `/fourn/facture/card.php`
+- ZIP : `module_agebf-3.6.zip`
+
+### Prérequis modules Dolibarr (nouveaux)
+
+- Module **Fournisseurs** obligatoire (factures fournisseurs)
+- Permission **Fournisseurs > Lire les factures** requise pour le bouton Préparer virement
+
 ## 3.5 (2026-05-29)
 
 - Nomenclature produits alignée sur la réalité Bruxelles Formation :

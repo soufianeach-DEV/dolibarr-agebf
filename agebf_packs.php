@@ -423,7 +423,7 @@ foreach ($rows_filtered as $r) {
     }
 
     // Bouton Préparer virement bancaire + lien vérification écriture
-    $vir_url    = DOL_URL_ROOT . '/fourn/paiement/card.php?action=create&facid=' . (int)$r->fac_id;
+    $vir_url    = DOL_URL_ROOT . '/fourn/facture/card.php?id=' . (int)$r->fac_id . '#paiement';
     $ecr_url    = DOL_URL_ROOT . '/compta/bank/bankentries_list.php?account=1&search_description='
                 . urlencode($r->fac_ref);
     $ecr_link   = '<br><a href="' . $ecr_url . '" target="_blank"'
@@ -444,7 +444,7 @@ foreach ($rows_filtered as $r) {
     print '<td>' . $pack_badge . '</td>';
     print '<td>' . $lien_tiers . '</td>';
     print '<td style="white-space:nowrap">' . $lien_fac . '</td>';
-    print '<td style="font-family:monospace;font-size:1em;letter-spacing:0.03em">' . $ogm_cell . '</td>';
+    print '<td style="font-family:monospace;font-size:1.2em;letter-spacing:0.05em;font-weight:600">' . $ogm_cell . '</td>';
     print '<td class="center">' . dol_print_date($db->jdate($r->date_facture), 'day') . '</td>';
     print '<td class="right" style="font-weight:bold;white-space:nowrap">' . price($r->montant) . '&nbsp;&euro;</td>';
 
