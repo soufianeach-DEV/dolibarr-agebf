@@ -72,7 +72,7 @@ class modAgeBF extends DolibarrModules
 		$this->editor_url = '';
 
 		// Possible values for version are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated', 'experimental_deprecated' or a version string like 'x.y.z'
-		$this->version = '3.6';
+		$this->version = '3.7';
 		// Url to the file with your last numberversion of this module
 		//$this->url_last_version = 'http://www.example.com/versionmodule.txt';
 
@@ -366,6 +366,23 @@ class modAgeBF extends DolibarrModules
 			'target'   => '',
 			'user'     => 2,
 		);
+		// ── Sous-entrée gauche : Suivi des paiements ─────────────────────────────
+		$this->menu[$r++] = array(
+			'fk_menu'  => 'fk_mainmenu=agebf',
+			'type'     => 'left',
+			'titre'    => 'Suivi des paiements',
+			'prefix'   => img_picto('', 'fa-exchange-alt', 'class="pictofixedwidth valignmiddle paddingright"'),
+			'mainmenu' => 'agebf',
+			'leftmenu' => 'agebf_compta',
+			'url'      => '/custom/agebf/agebf_compta.php',
+			'langs'    => 'agebf@agebf',
+			'position' => 40,
+			'enabled'  => 'isModEnabled("agebf")',
+			'perms'    => '1',
+			'target'   => '',
+			'user'     => 2,
+		);
+
 		/* BEGIN MODULEBUILDER LEFTMENU MYOBJECT */
 		/*
 		$this->menu[$r++]=array(

@@ -1,81 +1,45 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
-## 3.6 (2026-05-29)
+## 3.7 (2026-06-02)
 
-### Suivi des packs — migration factures fournisseurs + virement bancaire
+### Nouvelle fonctionnalite : Suivi des paiements SEPA
 
-- Migration du modèle de données : `llx_facture` → `llx_facture_fourn` (factures fournisseurs)
-  — aligne le module sur la réalité BF (l'ASBL paie des factures fourn, les Tiers remboursent)
-- Paiements lus depuis `llx_paiementfourn` / `llx_paiementfourn_facturefourn`
-- Référence facture au format BF réel : `S02605-XXXX`
-- 6 nouveaux types de packs hospitalisation :
-  `Montant_quote_part_beaux_enfants_-_de_18_ans` (36€),
-  `Montant_quote_part_beaux_enfants_18-20_ans` (170€),
-  `Montant_quote_part_beaux_enfants_de_18_ans` (65€),
-  `Montant_quote_part_enfant_de_-_de_18_ans` (47€),
-  `Montant_quote_part_enfant_de_19-20_ans` (194€),
-  `Montant_quote_part_agent_de_21-64_ans` (137€)
-- Nouvelle colonne **Virement** :
-  — bouton "Préparer virement" → fiche facture fournisseur Dolibarr (section paiement)
-  — badge "Soldée" si déjà payée
-  — lien "Écritures" sous chaque ligne → liste des écritures bancaires filtrée par ref facture
-- Communication structurée (OGM) : taille de police augmentée (`1.2em`, semi-gras)
-- Lien "Voir" modal et fiche pointe vers `/fourn/facture/card.php`
+- Nouvelle page **Suivi des paiements** (menu Helpy → Suivi des paiements)
+- Resout le probleme identifie par Philip : dans Dolibarr, un virement SEPA regroupe plusieurs factures mais on ne voyait pas quel pack (lunettes, sport, sante...) etait inclus dans quel virement
+- La page part des **virements SEPA** et decompose chacun en detail :
+  - Tableau principal : 1 ligne par virement — date, reference SEPA, releve bancaire Belfius (cliquable), statut rapproche, nb factures, montant total
+  - **Detail expandable** (bouton triangle) : Tiers + Pack (badge colore) + N° facture + Montant paye pour chaque facture du virement
+  - Bandeau stats : nb virements, rapproches/non-rapproches, montants
+  - Filtres : annee, statut rapproche (Tous/Oui/Non), recherche par reference SEPA
+  - Export CSV : 1 ligne par facture avec tous les champs (Date, Ref SEPA, Releve, Rapproche, Tiers, Pack, Facture, Montant)
+  - Liens directs : fiche paiement fournisseur, ecritures bancaires Belfius, fiche facture, fiche Tiers
+- ZIP : `module_agebf-3.7.zip`
+
+## 3.6 (2026-06-02)
+
+- Page **Documents** : renommage de fichier desormais disponible pour les admins sur **tous les documents** (Fournie + Manquante), pas seulement les lignes "Manquante"
+- Permet a la secretaire d'harmoniser les noms de fichiers meme quand la composition de menage est deja detectee
 - ZIP : `module_agebf-3.6.zip`
 
-### Prérequis modules Dolibarr (nouveaux)
+## 3.5 (2026-05-25)
 
-- Module **Fournisseurs** obligatoire (factures fournisseurs)
-- Permission **Fournisseurs > Lire les factures** requise pour le bouton Préparer virement
-
-## 3.5 (2026-05-29)
-
-- Nomenclature produits alignée sur la réalité Bruxelles Formation :
-  `Pack santé`, `Pack lunettes`, `Pack naissance`, `Pack sport & culture`,
-  `Montant_quote_part_enfant_18-20`, `Montant_quote_part_enfant_21-24`,
-  `Montant_quote_part_beaux_enfants_18-20`, `Indemnité funéraire`, `Divers_depart_pension`
-- Tarifs réels BF : 90€ / 150€ / 35€ / 70€ / 180€ / 210€ / 250€ / 125€
-- Référence SEPA alignée sur le format BF : `T2605XXX`
-- Badge couleur par type de pack mis à jour (9 types distincts)
+- Nouvelle page **Suivi des packs** (menu Helpy → Suivi des packs)
+  - Liste toutes les factures fournisseurs (packs avantages sociaux) par annee
+  - Filtres : annee, statut (Soldee/Partielle/Impayee), pack, tiers, N° facture, communication structuree, montant min/max
+  - Badges colores par type de pack
+  - Colonne Virement : bouton Preparer virement + lien vers ecritures bancaires
+  - Export CSV complet
 - ZIP : `module_agebf-3.5.zip`
 
-## 3.4 (2026-05-21)
-
-### Nouvelle page — Suivi des packs ASBL
-
-- Nouvelle entrée de menu **Suivi des packs** (Helpy → Suivi des packs)
-- Page centralisant les factures liées aux packs vendus par l'ASBL partenaire de Bruxelles Formation
-- Packs disponibles : **Mutuelle**, **Hospitalisation**, **Lunettes**, **Dentaire**
-- Un Tiers peut avoir plusieurs packs à son nom (ex. un pack par membre de la famille)
-- **Bénéficiaire** du pack distinct du Tiers payeur (extrafield sur la facture)
-- **Communication structurée belge (OGM)** au format `+++NNN/NNNN/NNNNN+++` — extrafield sur la facture
-- Suivi du paiement en 3 versements : **Soldée** / **Partielle** / **Impayée**
-- Lien direct vers la fiche facture Dolibarr et vers le mouvement bancaire SEPA
-- Filtre par **année** et par **statut de paiement**
-- Recherche libre (Tiers, pack, OGM, bénéficiaire)
-- Bandeau de statistiques : total factures / soldées / partielles / impayées / montant attendu vs reçu
-- Légende colorée par type de pack (badge couleur)
-- ZIP : `module_agebf-3.4.zip`
-
-## 3.2 (2026-05-21)
-
-### Page Documents — Tiers
+## 3.2 (2026-05-20)
 
 - Module renomme **Helpy** dans la liste des modules (Configuration → Modules/Applications)
 - Menu gauche renomme **Documents Tiers** (plus explicite)
-- Indicateurs texte : **Fournie** (vert) / **Manquante** (orange) / **Aucun document** (rouge)
-- Filtre 3 boutons : **Tous les Tiers** / **Avec composition** / **Sans composition**
-- Bandeau de statistiques etendu : Total / Fournie / Manquante / Aucun document
-- Visualisation des fichiers dans un **popup modal** (80 % de l'ecran) avec bouton Voir
-- Renommage de fichier inline pour les admins (lignes "Manquante") avec mise a jour `llx_ecm_files`
-- Bouton **Voir** sur tous les Tiers ayant des documents (composition valide ou non)
-- **Bouton Ajouter document** pour les Tiers sans aucun fichier joint :
-  - Formulaire d'upload integre directement dans le tableau
-  - Deplacement du fichier vers `documents/societe/[id]/`
-  - Insertion automatique dans `llx_ecm_files` (visible dans l'onglet natif Dolibarr)
-  - Detection immediate : si le nom contient "composition" ou "menage" → statut **Fournie** a la validation
-- Correction POST-Redirect-GET sur renommage et upload (supprime le dialogue "Confirmer le renvoi")
-- Regex de detection renforcee : `/composi?tion|m[ee]nage/i` (tolerant les fautes de frappe)
+- Indicateurs texte sur la page Documents : **Fournie** / **Manquante** / **Aucun document**
+- Filtre Documents corrige : 3 boutons (Tous / Avec composition / Sans composition)
+- Visualisation des fichiers directement dans un **popup modal** (80% de l'ecran)
+- Renommage de fichier inline pour les admins sur les lignes "Manquante"
+- Bouton **Voir** disponible sur tous les Tiers ayant des documents
 - ZIP : `module_agebf-3.2.zip`
 
 ## 3.1 (2026-05-20)

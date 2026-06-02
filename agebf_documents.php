@@ -307,12 +307,19 @@ foreach ($rows as $row) {
 		print '<tr>';
 		print '<td colspan="4" style="padding:6px 20px 10px 30px;background:' . $bg_zone . ';border-top:none">';
 
-		if ($user->admin && !$row['has_compo']) {
-			// Admin + manquante : afficher aide renommage
-			print '<div style="font-size:0.88em;color:#555;margin-bottom:6px">';
-			print '<b>Fichiers presents</b> — renommez un fichier pour qu\'il soit reconnu comme composition de m&eacute;nage ';
-			print '<span style="color:#888">(le nom doit contenir &laquo;&nbsp;composition&nbsp;&raquo;, &laquo;&nbsp;compostion&nbsp;&raquo; ou &laquo;&nbsp;m&eacute;nage&nbsp;&raquo;)</span>';
-			print '</div>';
+		if ($user->admin) {
+			if (!$row['has_compo']) {
+				// Admin + manquante : message aide détection
+				print '<div style="font-size:0.88em;color:#555;margin-bottom:6px">';
+				print '<b>Fichiers presents</b> — renommez un fichier pour qu\'il soit reconnu comme composition de m&eacute;nage ';
+				print '<span style="color:#888">(le nom doit contenir &laquo;&nbsp;composition&nbsp;&raquo;, &laquo;&nbsp;compostion&nbsp;&raquo; ou &laquo;&nbsp;m&eacute;nage&nbsp;&raquo;)</span>';
+				print '</div>';
+			} else {
+				// Admin + fournie : renommage possible pour harmoniser
+				print '<div style="font-size:0.88em;color:#555;margin-bottom:6px">';
+				print '<b>Fichiers presents</b> — renommage disponible pour harmoniser les noms';
+				print '</div>';
+			}
 		} else {
 			print '<div style="font-size:0.88em;color:#555;margin-bottom:6px"><b>Fichiers presents</b></div>';
 		}
@@ -334,8 +341,8 @@ foreach ($rows as $row) {
 			          . 'style="display:inline-flex;align-items:center;padding:3px 10px;background:#6c757d;color:#fff;border-radius:3px;font-size:0.85em;text-decoration:none;white-space:nowrap">'
 			          . img_picto('', 'fa-eye', 'class="paddingright"') . ' Voir</a>';
 
-			if ($user->admin && !$row['has_compo']) {
-				// Admin + manquante : Voir + Renommer
+			if ($user->admin) {
+				// Admin : Voir + Renommer (sur tous les fichiers)
 				print '<form method="POST" action="' . $url_base . '" style="display:flex;align-items:center;gap:8px;margin:4px 0">';
 				print '<input type="hidden" name="action"  value="rename">';
 				print '<input type="hidden" name="token"   value="' . newToken() . '">';
@@ -348,7 +355,7 @@ foreach ($rows as $row) {
 				print '<button type="submit" class="butAction" style="padding:3px 14px;font-size:0.85em;margin:0">Renommer</button>';
 				print '</form>';
 			} else {
-				// Tous : Voir uniquement
+				// Non-admin : Voir uniquement
 				print '<div style="display:flex;align-items:center;gap:10px;margin:4px 0">';
 				print $btn_voir;
 				print '<span style="font-size:0.9em;' . $name_style . '">' . $fname . '</span>';

@@ -3,7 +3,7 @@
 > Module custom développé dans le cadre d'un stage chez **Bruxelles Formation**.
 
 **Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
-**Version :** 3.6  
+**Version :** 3.7  
 **Compatibilité :** Dolibarr 19+, PHP 8.0+
 
 ---
@@ -104,6 +104,8 @@ ALTER TABLE llx_facture_fourn_extrafields
 agebf/
 ├── agebfindex.php                    # Fete des enfants : liste, stats, filtre, export CSV
 ├── agebf_documents.php               # Documents : composition de menage par Tiers
+├── agebf_packs.php                   # Suivi des packs : factures fournisseurs par pack et statut
+├── agebf_compta.php                  # Suivi des paiements : virements SEPA avec detail packs par Tiers
 ├── agebf_packs.php                   # Suivi des packs : factures fourn, virements, paiements
 ├── core/
 │   └── modules/
