@@ -13,16 +13,79 @@ if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.in
 if (!$res) { die("Include of main fails"); }
 
 // ── Paramètres ────────────────────────────────────────────────────────────────
-$annee      = (int) GETPOST('annee',      'int');
-$s_rapproche = GETPOST('s_rapproche', 'aZ09');
-$s_sepa      = trim(GETPOST('s_sepa',  'alphanohtml'));
-$expand      = trim(GETPOST('expand',  'alphanohtml')); // id du paiement à ouvrir (JS)
-$export      = GETPOST('export', 'aZ09');
+$annee       = (int) GETPOST('annee',       'int');
+$s_rapproche = GETPOST('s_rapproche',       'aZ09');
+$s_sepa      = trim(GETPOST('s_sepa',       'alphanohtml'));
+$export      = GETPOST('export',            'aZ09');
+$action      = GETPOST('action',            'aZ09');
 
 if ($annee < 2020 || $annee > 2100) $annee = (int) date('Y');
 if (!in_array($s_rapproche, ['tous', 'oui', 'non'])) $s_rapproche = 'tous';
 
 $url_base = DOL_URL_ROOT . '/custom/agebf/agebf_compta.php';
+$msg_ok  = '';
+$msg_err = '';
+
+if (GETPOST('rapproche_ok', 'int') == 1) {
+	$msg_ok = 'Paiement rapproche avec succes — releve : <b>' . dol_escape_htmltag(GETPOST('releve_ok', 'nohtml')) . '</b>';
+}
+if (GETPOST('derapproche_ok', 'int') == 1) {
+	$msg_ok = 'Rapprochement annule.';
+}
+
+// ── Action : rapprocher un paiement ──────────────────────────────────────────
+if ($action === 'rapprocher' && !empty($_POST['token']) && checkToken()) {
+	$pay_id    = (int) GETPOST('pay_id',    'int');
+	$num_rel   = trim(GETPOST('num_releve', 'alphanohtml'));
+
+	if ($pay_id > 0) {
+		// Trouver l'écriture bancaire liée à ce paiement fournisseur
+		$sql_bk = "SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank b"
+		        . " INNER JOIN " . MAIN_DB_PREFIX . "bank_url bu ON bu.fk_bank = b.rowid"
+		        . " WHERE bu.url_id = " . $pay_id
+		        . " AND bu.type = 'payment_supplier' LIMIT 1";
+		$rbk = $db->query($sql_bk);
+		if ($rbk && ($obk = $db->fetch_object($rbk))) {
+			$bank_id = (int) $obk->rowid;
+			$sql_up  = "UPDATE " . MAIN_DB_PREFIX . "bank"
+			         . " SET rappro = 1"
+			         . ($num_rel !== '' ? ", num_releve = '" . $db->escape($num_rel) . "'" : "")
+			         . " WHERE rowid = " . $bank_id;
+			if ($db->query($sql_up)) {
+				header('Location: ' . $url_base . '?annee=' . $annee . '&s_rapproche=' . urlencode($s_rapproche)
+				     . '&s_sepa=' . urlencode($s_sepa) . '&rapproche_ok=1&releve_ok=' . urlencode($num_rel));
+				exit;
+			} else {
+				$msg_err = 'Erreur lors du rapprochement : ' . $db->lasterror();
+			}
+		} else {
+			$msg_err = 'Aucune ecriture bancaire trouvee pour ce paiement. Verifiez que le paiement est bien lie a un compte bancaire dans Dolibarr.';
+		}
+	}
+}
+
+// ── Action : annuler un rapprochement (admin uniquement) ─────────────────────
+if ($action === 'derapprocher' && $user->admin && !empty($_POST['token']) && checkToken()) {
+	$pay_id = (int) GETPOST('pay_id', 'int');
+
+	if ($pay_id > 0) {
+		$sql_bk = "SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank b"
+		        . " INNER JOIN " . MAIN_DB_PREFIX . "bank_url bu ON bu.fk_bank = b.rowid"
+		        . " WHERE bu.url_id = " . $pay_id
+		        . " AND bu.type = 'payment_supplier' LIMIT 1";
+		$rbk = $db->query($sql_bk);
+		if ($rbk && ($obk = $db->fetch_object($rbk))) {
+			$sql_up = "UPDATE " . MAIN_DB_PREFIX . "bank SET rappro = 0 WHERE rowid = " . (int)$obk->rowid;
+			if ($db->query($sql_up)) {
+				header('Location: ' . $url_base . '?annee=' . $annee . '&s_rapproche=' . urlencode($s_rapproche)
+				     . '&s_sepa=' . urlencode($s_sepa) . '&derapproche_ok=1');
+				exit;
+			} else {
+				$msg_err = 'Erreur lors de l\'annulation : ' . $db->lasterror();
+			}
+		}
+	}
+}
 
 // ── Requête principale : paiements fournisseurs ──────────────────────────────
 // Pour chaque paiement (pay), on récupère :
@@ -197,6 +260,9 @@ function bfToggle(id) {
 
 print load_fiche_titre("Suivi des paiements SEPA", '', 'fa-exchange-alt');
 
+if ($msg_ok)  print '<div class="ok">'    . $msg_ok  . '</div>';
+if ($msg_err) print '<div class="error">' . $msg_err . '</div>';
+
 // ── Bandeau stats ─────────────────────────────────────────────────────────────
 $stats = [
 	['label' => 'Virements ' . $annee,  'value' => $nb_total,                                      'color' => '#333'],
@@ -267,7 +333,7 @@ print '<th>Relev&eacute; bancaire</th>';
 print '<th class="center">Rapproch&eacute;</th>';
 print '<th class="center">Factures</th>';
 print '<th class="right">Montant</th>';
-print '<th class="center">D&eacute;tail</th>';
+print '<th class="center">Action</th>';
 print '</tr>';
 
 if (empty($payments)) {
@@ -298,8 +364,40 @@ foreach ($payments as $pay) {
 
 	// Lien vers la fiche paiement fournisseur
 	$pay_url  = DOL_URL_ROOT . '/fourn/paiement/card.php?id=' . $pid;
-	$voir_btn = '<a href="' . $pay_url . '" style="padding:2px 9px;background:#6c757d;color:#fff;border-radius:3px;font-size:0.82em;text-decoration:none;display:inline-flex;align-items:center;gap:5px">'
-	          . img_picto('', 'fa-eye', '') . ' Fiche</a>';
+	$fiche_btn = '<a href="' . $pay_url . '" style="padding:2px 9px;background:#6c757d;color:#fff;border-radius:3px;font-size:0.82em;text-decoration:none;display:inline-flex;align-items:center;gap:5px">'
+	           . img_picto('', 'fa-eye', '') . ' Fiche</a>';
+
+	// Bouton Rapprocher (si non rapproché) ou Dé-rapprocher (admin, si rapproché)
+	if (!$pay->rapproche) {
+		$rapp_form = '<form method="POST" action="' . $url_base . '" style="display:inline-flex;align-items:center;gap:5px;margin-top:4px">'
+		           . '<input type="hidden" name="action"       value="rapprocher">'
+		           . '<input type="hidden" name="token"        value="' . newToken() . '">'
+		           . '<input type="hidden" name="pay_id"       value="' . $pid . '">'
+		           . '<input type="hidden" name="annee"        value="' . $annee . '">'
+		           . '<input type="hidden" name="s_rapproche"  value="' . dol_escape_htmltag($s_rapproche) . '">'
+		           . '<input type="hidden" name="s_sepa"       value="' . dol_escape_htmltag($s_sepa) . '">'
+		           . '<input type="text"   name="num_releve" placeholder="Ex: Belfius 8/32" '
+		           .        'style="width:130px;padding:2px 6px;font-size:0.82em;border:1px solid #ccc;border-radius:3px" '
+		           .        'title="Numero du releve bancaire Belfius">'
+		           . '<button type="submit" style="padding:2px 10px;background:#28a745;color:#fff;border:none;border-radius:3px;font-size:0.82em;cursor:pointer;white-space:nowrap">'
+		           . img_picto('', 'fa-check', '') . ' Rapprocher</button>'
+		           . '</form>';
+	} else {
+		$rapp_form = '';
+		if ($user->admin) {
+			$rapp_form = '<form method="POST" action="' . $url_base . '" style="display:inline-flex;align-items:center;margin-top:4px" '
+			           . 'onsubmit="return confirm(\'Annuler le rapprochement de ce paiement ?\')">'
+			           . '<input type="hidden" name="action"      value="derapprocher">'
+			           . '<input type="hidden" name="token"       value="' . newToken() . '">'
+			           . '<input type="hidden" name="pay_id"      value="' . $pid . '">'
+			           . '<input type="hidden" name="annee"       value="' . $annee . '">'
+			           . '<input type="hidden" name="s_rapproche" value="' . dol_escape_htmltag($s_rapproche) . '">'
+			           . '<input type="hidden" name="s_sepa"      value="' . dol_escape_htmltag($s_sepa) . '">'
+			           . '<button type="submit" style="padding:2px 9px;background:#dc3545;color:#fff;border:none;border-radius:3px;font-size:0.78em;cursor:pointer;white-space:nowrap">'
+			           . img_picto('', 'fa-undo', '') . ' Ann.</button>'
+			           . '</form>';
+		}
+	}
 
 	// Couleur de fond selon statut rapproché
 	$bg = $pay->rapproche ? '' : ' style="background-color:#fff5f5"';
@@ -316,7 +414,10 @@ foreach ($payments as $pay) {
 	print '<td class="center">' . $rapp_badge . '</td>';
 	print '<td class="center"><span style="font-weight:bold">' . (int)$pay->nb_factures . '</span></td>';
 	print '<td class="right" style="font-weight:bold;white-space:nowrap">' . price($pay->montant) . '&nbsp;&euro;</td>';
-	print '<td class="center">' . $voir_btn . '</td>';
+	print '<td class="center" style="white-space:nowrap">';
+	print $fiche_btn;
+	print $rapp_form;
+	print '</td>';
 	print '</tr>';
 
 	// ── Lignes de détail (cachées par défaut) ─────────────────────────────────
@@ -363,9 +464,12 @@ print '</table>';
 // ── Légende ───────────────────────────────────────────────────────────────────
 print '<div style="margin-top:14px;font-size:0.85em;color:#666;display:flex;gap:18px;flex-wrap:wrap;align-items:center">';
 print '<b>L&eacute;gende :</b>';
-print '<span>' . img_picto('', 'fa-check-circle', 'style="color:#28a745"') . ' Rapproch&eacute; = &eacute;criture bancaire valid&eacute;e dans Dolibarr</span>';
-print '<span>' . img_picto('', 'fa-times-circle', 'style="color:#dc3545"') . ' Non rapproch&eacute; = &agrave; v&eacute;rifier avec le relev&eacute; Belfius</span>';
-print '<span>&#9658; = cliquer pour voir le d&eacute;tail des packs couverts par le virement</span>';
+print '<span>' . img_picto('', 'fa-check-circle', 'style="color:#28a745"') . ' Rapproch&eacute; = &eacute;criture bancaire valid&eacute;e</span>';
+print '<span>' . img_picto('', 'fa-times-circle', 'style="color:#dc3545"') . ' Non rapproch&eacute; = saisir le n&deg; relev&eacute; Belfius puis cliquer <b>Rapprocher</b></span>';
+print '<span>&#9658; = voir le d&eacute;tail des packs couverts par le virement</span>';
+if ($user->admin) {
+    print '<span style="color:#dc3545">Bouton <b>Ann.</b> (admin uniquement) = annuler un rapprochement</span>';
+}
 print '</div>';
 
 print '</div>'; // fichecenter

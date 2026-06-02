@@ -10,11 +10,12 @@
 
 ## Objectif
 
-Trois fonctionnalités regroupées sous le menu **Helpy** :
+Quatre fonctionnalités regroupées sous le menu **Helpy** :
 
 1. Calculer automatiquement l'âge des contacts **Fils / Fille** au 1er janvier, déterminer lesquels sont invités à la **fête des enfants** de Bruxelles Formation
 2. Suivre les **documents** (composition de ménage) fournis par chaque Tiers
 3. Suivre les **packs ASBL** (factures fournisseurs, virements, paiements en 3 versements)
+4. Suivre les **paiements SEPA** : décomposer chaque virement bancaire en détail (Tiers + Pack + Montant) et effectuer le rapprochement bancaire
 
 **Règle métier — Fête des enfants :** un enfant est invité s'il a strictement moins de 16 ans au 1er janvier (les 15 ans sont inclus).
 
@@ -29,7 +30,7 @@ Ces modules doivent être activés dans **Configuration → Modules/Applications
 | **Tiers** | Toutes les pages | Activé par défaut |
 | **Contacts** | Fête des enfants | Activé par défaut |
 | **Fournisseurs** | Suivi des packs | Configuration → Modules → Achats |
-| **Banques et Caisses** | Suivi des packs (écritures) | Configuration → Modules → Finance |
+| **Banques et Caisses** | Suivi des packs + Suivi des paiements | Configuration → Modules → Finance |
 | **Produits / Services** | Suivi des packs (packs) | Configuration → Modules → Produits |
 | **GED (Documents)** | Documents Tiers | Configuration → Modules → Outils |
 | **Travaux planifiés** | Cron calcul des âges | Configuration → Modules → Outils |
@@ -43,7 +44,7 @@ Dans **Accueil → Utilisateurs → [utilisateur] → Permissions** :
 | Fournisseurs | Lire les factures (et paiements) fournisseurs |
 | Fournisseurs | Créer les factures fournisseur |
 | Banques et caisses | Consulter les comptes financiers |
-| Banques et caisses | Créer/modifier montant/supprimer écritures bancaires |
+| Banques et caisses | Créer/modifier montant/supprimer écritures bancaires (nécessaire pour le rapprochement) |
 
 ---
 
@@ -105,11 +106,10 @@ agebf/
 ├── agebfindex.php                    # Fete des enfants : liste, stats, filtre, export CSV
 ├── agebf_documents.php               # Documents : composition de menage par Tiers
 ├── agebf_packs.php                   # Suivi des packs : factures fournisseurs par pack et statut
-├── agebf_compta.php                  # Suivi des paiements : virements SEPA avec detail packs par Tiers
-├── agebf_packs.php                   # Suivi des packs : factures fourn, virements, paiements
+├── agebf_compta.php                  # Suivi des paiements : virements SEPA, detail packs, rapprochement
 ├── core/
 │   └── modules/
-│       └── modAgeBF.class.php        # Descripteur v3.6 (cron, extrafields, menus)
+│       └── modAgeBF.class.php        # Descripteur v3.7 (cron, extrafields, menus)
 ├── class/
 │   └── agebf.class.php               # Logique de calcul + propagation vers Tiers
 ├── admin/
@@ -130,7 +130,7 @@ agebf/
 
 ### Méthode 1 — ZIP via l'interface Dolibarr (recommandée)
 
-1. Télécharger **`module_agebf-3.6.zip`** depuis la [page Releases](https://github.com/soufianeach-DEV/dolibarr-agebf/releases)
+1. Télécharger **`module_agebf-3.7.zip`** depuis la [page Releases](https://github.com/soufianeach-DEV/dolibarr-agebf/releases)
 2. Dans Dolibarr : **Configuration → Modules/Applications**
 3. Cliquer sur l'onglet **"Déployer/Installer un module externe"**
 4. Choisir le fichier ZIP → **Envoyer le fichier**
@@ -164,13 +164,14 @@ Les 5 champs extrafields sont créés automatiquement, ainsi que le cron dans **
 
 ### Menu Helpy
 
-Après activation, le menu **Helpy** apparaît dans la barre du haut avec trois sous-pages :
+Après activation, le menu **Helpy** apparaît dans la barre du haut avec quatre sous-pages :
 
 | Page | Accès | Description |
 |---|---|---|
 | Fête des enfants | Helpy → Fête des enfants | Liste des enfants invités, stats, export CSV |
-| Documents | Helpy → Documents Tiers | Suivi des compositions de ménage par Tiers |
+| Documents Tiers | Helpy → Documents Tiers | Suivi des compositions de ménage par Tiers |
 | Suivi des packs | Helpy → Suivi des packs | Suivi des factures fournisseurs et paiements packs ASBL |
+| Suivi des paiements | Helpy → Suivi des paiements | Virements SEPA décomposés par pack et rapprochement bancaire |
 
 ### Page Fête des enfants
 
@@ -190,7 +191,7 @@ Après activation, le menu **Helpy** apparaît dans la barre du haut avec trois 
 | Tableau | Tiers, nb documents, statut composition, lien fiche |
 | Indicateurs | **Fournie** (vert) / **Manquante** (orange) / **Aucun document** (rouge) |
 | Bouton Voir | Ouvre le fichier dans un popup modal (80 % de l'écran) |
-| Renommage admin | Sur les lignes "Manquante", un admin peut renommer le fichier inline |
+| Renommage admin | Un admin peut renommer tout fichier inline — sur les lignes **Fournie** (harmonisation) et **Manquante** (correction détection) |
 | Ajout document | Sur les Tiers sans aucun fichier : formulaire d'upload intégré dans le tableau |
 | Détection | Fichier contenant "composition", "compostion" ou "ménage" dans son nom |
 | Sync Dolibarr | Tout ajout / renommage met à jour `llx_ecm_files` (onglet Documents natif) |
@@ -209,6 +210,23 @@ Après activation, le menu **Helpy** apparaît dans la barre du haut avec trois 
 | Lien Écritures | Filtre la liste des écritures bancaires Belfius par référence de facture |
 | OGM | Communication structurée belge `+++NNN/NNNN/NNNNN+++` (police monospace, taille 1.2em) |
 | Export CSV | Télécharge la liste filtrée en `.csv` (UTF-8 + BOM Excel) |
+
+### Page Suivi des paiements
+
+Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mais Dolibarr natif n'affiche pas le détail des packs inclus. Cette page décompose chaque virement et permet le rapprochement bancaire directement depuis Helpy.
+
+| Élément | Description |
+|---|---|
+| Bandeau stats | Nb virements / Rapprochés / Non rapprochés / Montants total, rapproché, non rapproché |
+| Filtres | Année, statut rapproché (Tous / Oui / Non), recherche par référence SEPA |
+| Tableau | 1 ligne par virement SEPA : date, référence, relevé Belfius (cliquable), rapproché ✅/❌, nb factures, montant |
+| Détail expandable ▶ | Cliquer sur ▶ déroule le détail : Tiers + Pack (badge coloré) + N° facture + Montant payé |
+| **Rapprochement inline** | Sur chaque ligne non rapprochée : saisir le N° relevé Belfius (ex: `Belfius 8/32`) + cliquer **Rapprocher** → `llx_bank.rappro = 1` |
+| Annulation (admin) | Bouton **Ann.** sur les lignes déjà rapprochées — accessible aux admins uniquement, avec confirmation |
+| Liens directs | Fiche paiement fournisseur, écritures bancaires Belfius, fiche facture, fiche Tiers |
+| Export CSV | 1 ligne par facture : Date, Réf SEPA, Relevé, Rapproché, Tiers, Pack, N° facture, Montant payé |
+
+> **Rapprochement** : met à jour `llx_bank.rappro = 1` et `llx_bank.num_releve` directement en base. Équivalent à la fonction native Dolibarr (Banques/Caisses → Rapprochement) mais intégré dans Helpy.
 
 ### Automatisation quotidienne
 
