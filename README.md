@@ -3,7 +3,7 @@
 > Module custom développé dans le cadre d'un stage chez **Bruxelles Formation**.
 
 **Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
-**Version :** 3.7  
+**Version :** 3.9  
 **Compatibilité :** Dolibarr 19+, PHP 8.0+
 
 ---
@@ -14,8 +14,8 @@ Quatre fonctionnalités regroupées sous le menu **Helpy** :
 
 1. Calculer automatiquement l'âge des contacts **Fils / Fille** au 1er janvier, déterminer lesquels sont invités à la **fête des enfants** de Bruxelles Formation
 2. Suivre les **documents** (composition de ménage) fournis par chaque Tiers
-3. Suivre les **packs ASBL** (factures fournisseurs, virements, paiements en 3 versements)
-4. Suivre les **paiements SEPA** : décomposer chaque virement bancaire en détail (Tiers + Pack + Montant) et effectuer le rapprochement bancaire
+3. Préparer les **paiements à effectuer** (factures fournisseurs des packs ASBL, virements, paiements en 3 versements)
+4. Réaliser le **rapprochement bancaire** des paiements SEPA : décomposer chaque virement par facture (Tiers + Pack + Montant) et pointer le relevé Belfius (import CSV scénario B ou pointage manuel)
 
 **Règle métier — Fête des enfants :** un enfant est invité s'il a strictement moins de 16 ans au 1er janvier (les 15 ans sont inclus).
 
@@ -29,9 +29,9 @@ Ces modules doivent être activés dans **Configuration → Modules/Applications
 |---|---|---|
 | **Tiers** | Toutes les pages | Activé par défaut |
 | **Contacts** | Fête des enfants | Activé par défaut |
-| **Fournisseurs** | Suivi des packs | Configuration → Modules → Achats |
-| **Banques et Caisses** | Suivi des packs + Suivi des paiements | Configuration → Modules → Finance |
-| **Produits / Services** | Suivi des packs (packs) | Configuration → Modules → Produits |
+| **Fournisseurs** | Paiements à effectuer | Configuration → Modules → Achats |
+| **Banques et Caisses** | Paiements à effectuer + Rapprochement bancaire | Configuration → Modules → Finance |
+| **Produits / Services** | Paiements à effectuer (packs) | Configuration → Modules → Produits |
 | **GED (Documents)** | Documents Tiers | Configuration → Modules → Outils |
 | **Travaux planifiés** | Cron calcul des âges | Configuration → Modules → Outils |
 
@@ -67,13 +67,25 @@ Le module repose sur le modèle natif Dolibarr :
 2. Les contacts avec `poste = 'Fils'` ou `poste = 'Fille'` et âge < 16 reçoivent la case **"Fête des enfants" cochée**
 3. Le Tiers parent reçoit automatiquement `fete_enfants = 1` et `nb_enfants_invites = N`
 
-### Suivi des packs
+### Paiements à effectuer
 
 1. L'ASBL crée une **facture fournisseur** (`S02605-XXXX`) pour chaque pack souscrit par un employé
 2. Le Tiers rembourse l'ASBL en **3 versements** — chaque versement est enregistré dans `llx_paiementfourn`
 3. La page affiche en temps réel : montant payé, montant restant, statut (Soldée / Partielle / Impayée)
 4. Le bouton **Préparer virement** ouvre la fiche facture fournisseur Dolibarr pour enregistrer un paiement
 5. Le lien **Écritures** filtre la liste des écritures bancaires sur la référence de la facture
+
+### Rapprochement bancaire — import Belfius (scénario B)
+
+Le relevé Belfius présente chaque ordre collectif SEPA comme **une seule ligne globale** (montant total, sans détail des bénéficiaires). L'import CSV applique ce « scénario B » :
+
+1. Le module lit la communication de chaque ligne et y retrouve la référence du lot `FICHIER : DOL/AAAAMMJJ/CTxx`
+2. Il rapproche la ligne au lot SEPA correspondant et affiche un **niveau de confiance** :
+   - **Sûr** — référence du lot trouvée *et* montant identique
+   - **Probable** — référence trouvée mais montant différent, *ou* aucune référence mais un seul lot correspond par montant
+   - **Ambigu** — aucune référence et plusieurs lots correspondent au même montant
+   - **Aucun lot** — aucune correspondance
+3. En un clic, tous les virements du lot sélectionné passent en `rappro = 1` avec le N° de relevé Belfius
 
 ---
 
@@ -105,11 +117,11 @@ ALTER TABLE llx_facture_fourn_extrafields
 agebf/
 ├── agebfindex.php                    # Fete des enfants : liste, stats, filtre, export CSV
 ├── agebf_documents.php               # Documents : composition de menage par Tiers
-├── agebf_packs.php                   # Suivi des packs : factures fournisseurs par pack et statut
-├── agebf_compta.php                  # Suivi des paiements : virements SEPA, detail packs, rapprochement
+├── agebf_packs.php                   # Paiements a effectuer : factures fournisseurs par pack et statut
+├── agebf_compta.php                  # Rapprochement bancaire : virements SEPA, detail packs, import Belfius
 ├── core/
 │   └── modules/
-│       └── modAgeBF.class.php        # Descripteur v3.7 (cron, extrafields, menus)
+│       └── modAgeBF.class.php        # Descripteur v3.9 (cron, extrafields, menus)
 ├── class/
 │   └── agebf.class.php               # Logique de calcul + propagation vers Tiers
 ├── admin/
@@ -130,7 +142,7 @@ agebf/
 
 ### Méthode 1 — ZIP via l'interface Dolibarr (recommandée)
 
-1. Télécharger **`module_agebf-3.7.zip`** depuis la [page Releases](https://github.com/soufianeach-DEV/dolibarr-agebf/releases)
+1. Télécharger **`module_agebf-3.9.zip`** depuis la [page Releases](https://github.com/soufianeach-DEV/dolibarr-agebf/releases)
 2. Dans Dolibarr : **Configuration → Modules/Applications**
 3. Cliquer sur l'onglet **"Déployer/Installer un module externe"**
 4. Choisir le fichier ZIP → **Envoyer le fichier**
@@ -152,7 +164,7 @@ Les 5 champs extrafields sont créés automatiquement, ainsi que le cron dans **
 
 > **Mise à jour :** désactivez puis réactivez le module pour appliquer la nouvelle version (menus, champs).
 
-### Après installation — étapes supplémentaires pour le Suivi des packs
+### Après installation — étapes supplémentaires pour les Paiements à effectuer
 
 1. Activer les modules **Fournisseurs** et **Banques et Caisses**
 2. Ajouter les colonnes extrafields sur les factures fournisseurs (voir SQL ci-dessus)
@@ -170,8 +182,8 @@ Après activation, le menu **Helpy** apparaît dans la barre du haut avec quatre
 |---|---|---|
 | Fête des enfants | Helpy → Fête des enfants | Liste des enfants invités, stats, export CSV |
 | Documents Tiers | Helpy → Documents Tiers | Suivi des compositions de ménage par Tiers |
-| Suivi des packs | Helpy → Suivi des packs | Suivi des factures fournisseurs et paiements packs ASBL |
-| Suivi des paiements | Helpy → Suivi des paiements | Virements SEPA décomposés par pack et rapprochement bancaire |
+| Paiements à effectuer | Helpy → Paiements à effectuer | Préparer/suivre les factures fournisseurs et versements des packs ASBL |
+| Rapprochement bancaire | Helpy → Rapprochement bancaire | Virements SEPA décomposés par facture + pointage du relevé Belfius (import CSV ou manuel) |
 
 ### Page Fête des enfants
 
@@ -196,7 +208,7 @@ Après activation, le menu **Helpy** apparaît dans la barre du haut avec quatre
 | Détection | Fichier contenant "composition", "compostion" ou "ménage" dans son nom |
 | Sync Dolibarr | Tout ajout / renommage met à jour `llx_ecm_files` (onglet Documents natif) |
 
-### Page Suivi des packs
+### Page Paiements à effectuer
 
 | Élément | Description |
 |---|---|
@@ -211,17 +223,18 @@ Après activation, le menu **Helpy** apparaît dans la barre du haut avec quatre
 | OGM | Communication structurée belge `+++NNN/NNNN/NNNNN+++` (police monospace, taille 1.2em) |
 | Export CSV | Télécharge la liste filtrée en `.csv` (UTF-8 + BOM Excel) |
 
-### Page Suivi des paiements
+### Page Rapprochement bancaire
 
-Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mais Dolibarr natif n'affiche pas le détail des packs inclus. Cette page décompose chaque virement et permet le rapprochement bancaire directement depuis Helpy.
+Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mais Dolibarr natif n'affiche pas le détail des packs inclus. Cette page décompose chaque virement par facture et permet le pointage du relevé Belfius directement depuis Helpy.
 
 | Élément | Description |
 |---|---|
 | Bandeau stats | Nb virements / Rapprochés / Non rapprochés / Montants total, rapproché, non rapproché |
 | Filtres | Année, statut rapproché (Tous / Oui / Non), recherche par référence SEPA |
-| Tableau | 1 ligne par virement SEPA : date, référence, relevé Belfius (cliquable), rapproché ✅/❌, nb factures, montant |
-| Détail expandable ▶ | Cliquer sur ▶ déroule le détail : Tiers + Pack (badge coloré) + N° facture + Montant payé |
-| **Rapprochement inline** | Sur chaque ligne non rapprochée : saisir le N° relevé Belfius (ex: `Belfius 8/32`) + cliquer **Rapprocher** → `llx_bank.rappro = 1` |
+| Vue regroupée par facture | 1 ligne par facture, ses virements dépliés au clic — relevé Belfius (cliquable), rapproché ✅/❌, montant |
+| Détail expandable ▶ | Tiers + Pack (badge coloré) + N° facture + Montant payé pour chaque virement |
+| **Import Belfius (CSV)** | Charge le relevé scénario B, retrouve le lot via `FICHIER : DOL/AAAAMMJJ/CTxx`, affiche le niveau de confiance (Sûr / Probable / Ambigu / Aucun lot), rapproche tout le lot en un clic |
+| **Rapprochement inline** | Sur chaque virement non rapproché : saisir le N° relevé Belfius (ex: `2026/0003`) + cliquer **Rapprocher** → `llx_bank.rappro = 1` |
 | Annulation (admin) | Bouton **Ann.** sur les lignes déjà rapprochées — accessible aux admins uniquement, avec confirmation |
 | Liens directs | Fiche paiement fournisseur, écritures bancaires Belfius, fiche facture, fiche Tiers |
 | Export CSV | 1 ligne par facture : Date, Réf SEPA, Relevé, Rapproché, Tiers, Pack, N° facture, Montant payé |
