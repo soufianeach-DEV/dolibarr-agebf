@@ -163,7 +163,7 @@ function csv_url(string $base, int $annee, string $statut, string $s_pack, strin
 }
 
 // ── HTML ──────────────────────────────────────────────────────────────────────
-llxHeader("", "Helpy — Suivi des packs", '', '', 0, 0, '', '', '', 'mod-agebf page-packs');
+llxHeader("", "Helpy — Paiements à effectuer", '', '', 0, 0, '', '', '', 'mod-agebf page-packs');
 
 // ── Modal visualisation facture ───────────────────────────────────────────────
 print '
@@ -226,7 +226,7 @@ document.addEventListener("keydown", function(e) { if (e.key === "Escape") bfClo
 </script>
 ';
 
-print load_fiche_titre("Suivi des packs ASBL", '', 'fa-file-invoice-dollar');
+print load_fiche_titre("Paiements à effectuer — factures par pack", '', 'fa-file-invoice-dollar');
 
 // ── Bandeau stats (cartes flex) ───────────────────────────────────────────────
 $stats = [

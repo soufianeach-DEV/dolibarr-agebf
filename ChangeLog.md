@@ -1,5 +1,16 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 3.9 (2026-06-03)
+
+### Amelioration : import Belfius scenario B + clarification des menus
+
+- **Import du releve Belfius reecrit en scenario B** : chaque ordre collectif Belfius est UNE ligne globale (montant total, sans detail). Le module retrouve le lot SEPA correspondant via la reference `FICHIER : DOL/AAAAMMJJ/CTxx`, puis rapproche en un clic tous les virements du lot. Validation sur releve Belfius reel et sur jeu de test.
+- **Correction d'un bug fatal PHP 8** : une variable locale `$conf` (niveau de confiance) ecrasait l'objet de configuration global Dolibarr, provoquant un `count(): null given` dans le footer. Variable renommee en `$confiance`.
+- **Menus renommes** pour refleter les deux phases du workflow :
+  - « Suivi des packs » -> **« Paiements a effectuer »** (preparer/suivre les versements)
+  - « Suivi des paiements » -> **« Rapprochement bancaire »** (pointer le releve Belfius)
+- ZIP : `module_agebf-3.9.zip`
+
 ## 3.8 (2026-06-03)
 
 ### Amelioration : Suivi des paiements SEPA — rapprochement par facture

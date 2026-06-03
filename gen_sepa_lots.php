@@ -41,6 +41,7 @@ foreach (['prelevement', 'prelevement_lignes', 'prelevement_demande', 'preleveme
 // --- 3. Pour chaque mois : un bon de virement + ses lignes + le XML --------------
 $idx_lot = 0;
 $total_tx = 0;
+$lots_csv = [];                                 // collecte pour le releve Belfius scenario B
 foreach ($mois as $ym => $lignes) {
     $idx_lot++;
     $annee = substr($ym, 0, 4);
@@ -68,12 +69,13 @@ foreach ($mois as $ym => $lignes) {
                   . '00000000' . str_pad((string)$l->pay_id, 4, '0', STR_PAD_LEFT);
         $mont = round((float) $l->montant, 2);
 
-        // ligne (par beneficiaire)
+        // ligne (par beneficiaire) — number = num_paiement (T-number) pour lier
+        // sans ambiguite le lot a son virement (paiementfourn.num_paiement)
         $db->query("INSERT INTO {$P}prelevement_lignes
             (fk_prelevement_bons, fk_soc, fk_user, statut, client_nom, amount, number)
             VALUES ($bon_id, " . (int)$l->soc_id . ", 1, 2,
                     '" . $db->real_escape_string($l->tiers) . "', $mont,
-                    '" . $db->real_escape_string($sup_iban) . "')");
+                    '" . $db->real_escape_string($l->ref_sepa) . "')");
         $ligne_id = $db->insert_id;
 
         // demande (lien facture -> bon)
@@ -102,10 +104,57 @@ foreach ($mois as $ym => $lignes) {
                          $org_nom, $org_iban, $org_bic, $xml_tx);
     file_put_contents("$receipts/$ref.xml", $xml);
 
-    echo "Lot $ref : " . count($lignes) . " virements, total " . number_format($total, 2, ',', '.') . " EUR -> $ref.xml\n";
+    // 3d. memoriser le lot pour le releve Belfius (1 ligne globale par lot)
+    $lots_csv[] = [
+        'bon_id' => $bon_id,
+        'ref'    => $ref,
+        'ym'     => $ym,
+        'date'   => $date_op,
+        'total'  => $total,
+        'nb'     => count($lignes),
+    ];
+
+    echo "Lot $ref (CT$bon_id) : " . count($lignes) . " virements, total " . number_format($total, 2, ',', '.') . " EUR -> $ref.xml\n";
 }
 
+// --- 4. Releve Belfius scenario B : 1 ligne globale "ORDRE COLLECTIF" par lot -----
+$out = [];
+$out[] = '"Compte :";"BE68 5390 0754 7034"';
+$out[] = '"Type :";"Compte courant"';
+$out[] = '"Periode :";"01/01/2026 - 31/12/2026"';
+$out[] = '"Devise :";"EUR"';
+$out[] = '"Date d\'extraction :";"' . date('d/m/Y') . '"';
+$out[] = '';
+$out[] = implode(';', array_map(fn($c) => '"' . $c . '"', [
+    'Compte', 'Date de comptabilisation', "Numero d'extrait", 'Numero de transaction',
+    'Compte contrepartie', 'Nom de la contrepartie', 'Rue et numero', 'Code postal et localite',
+    'Transaction', 'Date valeur', 'Montant', 'Devise', 'BIC', 'Code pays', 'Communication',
+]));
+$i = 0;
+foreach ($lots_csv as $lot) {
+    $i++;
+    $d        = $lot['date'];                                   // YYYY-MM-DD
+    $dd       = date('d/m/Y', strtotime($d));
+    $ddmm     = date('d-m', strtotime($d));
+    $ymd      = date('Ymd', strtotime($d));                     // pour FICHIER : DOL/AAAAMMJJ/CTxx
+    $extrait  = substr($lot['ym'], 0, 4) . '/' . str_pad((string)$i, 4, '0', STR_PAD_LEFT);
+    $groupe   = 'DOL/' . substr($lot['ym'], 0, 4) . substr($lot['ym'], 4, 2) . '/0000';
+    $ref_bq   = '0801' . strtoupper(substr(md5($lot['ref']), 0, 9));
+    $comm     = 'VOTRE ORDRE COLLECTIF BELFIUS DIRECT NET BUS. FICHIER  : DOL/' . $ymd
+              . '/CT' . $lot['bon_id'] . ' GROUPE : ' . $groupe
+              . '           REF. : ' . $ref_bq . ' VAL. ' . $ddmm;
+    $champs = [
+        'BE68 5390 0754 7034', $dd, $extrait, (string)(2026100000 + $i),
+        '', '', '', '',
+        $comm, $dd, '-' . number_format($lot['total'], 2, ',', '.'), 'EUR', '', '', $comm,
+    ];
+    $out[] = implode(';', array_map(fn($c) => '"' . str_replace('"', '""', (string)$c) . '"', $champs));
+}
+$content = mb_convert_encoding(implode("\r\n", $out) . "\r\n", 'ISO-8859-1', 'UTF-8');
+file_put_contents(__DIR__ . '/releve_belfius_lots.csv', $content);
+
 echo "OK - $idx_lot lots SEPA crees, $total_tx virements au total.\n";
+echo "Releve Belfius scenario B : " . count($lots_csv) . " lignes globales -> releve_belfius_lots.csv\n";
 $db->close();
 
 // ---------------------------------------------------------------------------------

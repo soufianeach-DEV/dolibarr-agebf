@@ -72,7 +72,7 @@ class modAgeBF extends DolibarrModules
 		$this->editor_url = '';
 
 		// Possible values for version are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated', 'experimental_deprecated' or a version string like 'x.y.z'
-		$this->version = '3.7';
+		$this->version = '3.9';
 		// Url to the file with your last numberversion of this module
 		//$this->url_last_version = 'http://www.example.com/versionmodule.txt';
 
@@ -350,11 +350,11 @@ class modAgeBF extends DolibarrModules
 			'user'     => 2,
 		);
 
-		// ── Sous-entrée gauche : Suivi des packs ─────────────────────────────
+		// ── Sous-entrée gauche : Paiements à effectuer (préparation/suivi) ────
 		$this->menu[$r++] = array(
 			'fk_menu'  => 'fk_mainmenu=agebf',
 			'type'     => 'left',
-			'titre'    => 'Suivi des packs',
+			'titre'    => 'Paiements à effectuer',
 			'prefix'   => img_picto('', 'fa-file-invoice-dollar', 'class="pictofixedwidth valignmiddle paddingright"'),
 			'mainmenu' => 'agebf',
 			'leftmenu' => 'agebf_packs',
@@ -366,11 +366,11 @@ class modAgeBF extends DolibarrModules
 			'target'   => '',
 			'user'     => 2,
 		);
-		// ── Sous-entrée gauche : Suivi des paiements ─────────────────────────────
+		// ── Sous-entrée gauche : Rapprochement bancaire ──────────────────────────
 		$this->menu[$r++] = array(
 			'fk_menu'  => 'fk_mainmenu=agebf',
 			'type'     => 'left',
-			'titre'    => 'Suivi des paiements',
+			'titre'    => 'Rapprochement bancaire',
 			'prefix'   => img_picto('', 'fa-exchange-alt', 'class="pictofixedwidth valignmiddle paddingright"'),
 			'mainmenu' => 'agebf',
 			'leftmenu' => 'agebf_compta',

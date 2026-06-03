@@ -35,9 +35,10 @@ if (GETPOST('derapproche_ok', 'int') == 1) {
 }
 if (GETPOSTISSET('belfius_ok')) {
 	$nb_b = (int) GETPOST('belfius_ok', 'int');
+	$nb_l = (int) GETPOST('belfius_lots', 'int');
 	$msg_ok = $nb_b > 0
-		? '<b>' . $nb_b . '</b> virement(s) rapproch&eacute;(s) automatiquement depuis le relev&eacute; Belfius.'
-		: 'Aucun virement rapproch&eacute; (aucune ligne coch&eacute;e).';
+		? '<b>' . $nb_b . '</b> virement(s) rapproch&eacute;(s) automatiquement depuis le relev&eacute; Belfius, sur <b>' . $nb_l . '</b> lot(s) SEPA.'
+		: 'Aucun virement rapproch&eacute; (aucun lot coch&eacute; ou d&eacute;j&agrave; tout rapproch&eacute;).';
 }
 
 // ── Action : rapprocher un paiement ──────────────────────────────────────────
@@ -94,27 +95,29 @@ if ($action === 'derapprocher' && $user->admin && !empty($_POST['token'])) {
 	}
 }
 
-// ── Action : appliquer les rapprochements validés de l'import Belfius ─────────
+// ── Action : appliquer les rapprochements validés de l'import Belfius (par lot) ─
 if ($action === 'apply_belfius' && !empty($_POST['token'])) {
-	$sel_pay = isset($_POST['sel_pay'])    && is_array($_POST['sel_pay'])    ? $_POST['sel_pay']    : [];
+	$sel_bon = isset($_POST['sel_bon'])    && is_array($_POST['sel_bon'])    ? $_POST['sel_bon']    : [];
 	$sel_rel = isset($_POST['sel_releve']) && is_array($_POST['sel_releve']) ? $_POST['sel_releve'] : [];
 	$apply   = isset($_POST['apply'])      && is_array($_POST['apply'])      ? $_POST['apply']      : [];
-	$nb_ok   = 0;
+	$lots    = bf_load_lots($db);
+	$nb_ok   = 0;   // virements rapprochés
+	$nb_lots = 0;   // lots traités
 	foreach ($apply as $idx => $on) {
-		$pid = isset($sel_pay[$idx]) ? (int) $sel_pay[$idx] : 0;
+		$bon = isset($sel_bon[$idx]) ? (int) $sel_bon[$idx] : 0;
 		$rel = isset($sel_rel[$idx]) ? trim((string) $sel_rel[$idx]) : '';
-		if ($pid <= 0) continue;
-		$rb = $db->query("SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank b"
-		    . " INNER JOIN " . MAIN_DB_PREFIX . "paiementfourn pay ON pay.fk_bank = b.rowid"
-		    . " WHERE pay.rowid = " . $pid . " LIMIT 1");
-		if ($rb && ($ob = $db->fetch_object($rb))) {
-			$up = "UPDATE " . MAIN_DB_PREFIX . "bank SET rappro = 1"
-			    . ($rel !== '' ? ", num_releve = '" . $db->escape($rel) . "'" : "")
-			    . " WHERE rowid = " . (int) $ob->rowid;
-			if ($db->query($up)) $nb_ok++;
+		if ($bon <= 0 || !isset($lots[$bon])) continue;
+		$bank_ids = [];
+		foreach ($lots[$bon]->virements as $v) {
+			if ($v->bank_id > 0 && !$v->rappro) $bank_ids[] = (int) $v->bank_id;
 		}
+		if (empty($bank_ids)) continue;
+		$up = "UPDATE " . MAIN_DB_PREFIX . "bank SET rappro = 1"
+		    . ($rel !== '' ? ", num_releve = '" . $db->escape($rel) . "'" : "")
+		    . " WHERE rowid IN (" . implode(',', $bank_ids) . ")";
+		if ($db->query($up)) { $nb_ok += count($bank_ids); $nb_lots++; }
 	}
-	header('Location: ' . $url_base . '?annee=' . $annee . '&belfius_ok=' . $nb_ok);
+	header('Location: ' . $url_base . '?annee=' . $annee . '&belfius_ok=' . $nb_ok . '&belfius_lots=' . $nb_lots);
 	exit;
 }
 
@@ -139,7 +142,12 @@ function bf_parse_belfius($path) {
 		if ($hdr === null) {
 			$norm   = array_map('bf_norm', $cells);
 			$joined = implode('|', $norm);
-			if (strpos($joined, 'montant') !== false || strpos($joined, 'bedrag') !== false) {
+			// Vraie ligne d'en-tete : plusieurs colonnes ET montant ET communication/date.
+			// (le preambule de filtres Belfius contient "Montant a partir de" sur une seule colonne -> a ignorer)
+			$has_montant = (strpos($joined, 'montant') !== false || strpos($joined, 'bedrag') !== false);
+			$has_comm    = (strpos($joined, 'communication') !== false || strpos($joined, 'mededeling') !== false
+			             || strpos($joined, 'comptabilisation') !== false || strpos($joined, 'boekingsdatum') !== false);
+			if (count($cells) >= 5 && $has_montant && $has_comm) {
 				$hdr = $norm;
 				foreach ($hdr as $i => $h) {
 					if (strpos($h, 'comptabilisation') !== false || strpos($h, 'boekingsdatum') !== false) $map['date'] = $i;
@@ -158,6 +166,9 @@ function bf_parse_belfius($path) {
 		$mf  = (float) str_replace(',', '.', str_replace('.', '', $mraw));
 		$dd  = $gc('date'); $diso = '';
 		if (preg_match('#(\d{2})/(\d{2})/(\d{4})#', $dd, $m)) $diso = $m[3] . '-' . $m[2] . '-' . $m[1];
+		// Reference du lot SEPA : "FICHIER : DOL/AAAAMMJJ/CTxx" -> CTxx = id du bon de virement Dolibarr
+		$ct = 0;
+		if (preg_match('#DOL/\d{6,8}/CT0*(\d+)#i', $gc('comm'), $mc)) $ct = (int) $mc[1];
 		$out[] = [
 			'date_disp' => $dd,
 			'date_iso'  => $diso,
@@ -166,9 +177,57 @@ function bf_parse_belfius($path) {
 			'mont_disp' => $mraw,
 			'name'      => $gc('name'),
 			'comm'      => $gc('comm'),
+			'ct'        => $ct,
 		];
 	}
 	return $out;
+}
+
+// ── Helper : charger les lots SEPA (bons de virement) + leurs virements ───────
+// Retourne [ bon_id => objet { ref, total, date_op, virements:[...], nb, nb_rappro, nb_libre } ].
+// Lien : prelevement_bons -> prelevement_lignes.number (= num_paiement) -> paiementfourn -> bank.
+// NB production : si Dolibarr stocke l'IBAN (et non le num_paiement) dans prelevement_lignes.number,
+// adapter ici la jointure lot->paiement (c'est le seul point a changer).
+function bf_load_lots($db) {
+	$P = MAIN_DB_PREFIX;
+	$sql = "SELECT pb.rowid AS bon_id, pb.ref AS lot_ref, pb.amount AS lot_total,
+	               DATE_FORMAT(pb.date_credit, '%Y-%m-%d') AS date_op,
+	               pl.rowid AS ligne_id, pl.number AS tnum, pl.client_nom AS tiers, pl.amount AS montant,
+	               pay.rowid AS pay_id, pay.num_paiement AS sepa, pay.fk_bank AS bank_id,
+	               COALESCE(b.rappro, 0) AS rappro, COALESCE(b.num_releve, '') AS num_releve,
+	               f.ref AS fac_ref
+	        FROM {$P}prelevement_bons pb
+	        JOIN {$P}prelevement_lignes pl ON pl.fk_prelevement_bons = pb.rowid
+	        LEFT JOIN {$P}paiementfourn pay ON pay.num_paiement = pl.number
+	        LEFT JOIN {$P}bank b ON b.rowid = pay.fk_bank
+	        LEFT JOIN {$P}prelevement pr ON pr.fk_prelevement_lignes = pl.rowid
+	        LEFT JOIN {$P}facture_fourn f ON f.rowid = pr.fk_facture_fourn
+	        WHERE pb.type = 'bank-transfer' AND pb.entity = " . (int) $GLOBALS['conf']->entity . "
+	        ORDER BY pb.rowid, pl.rowid";
+	$r = $db->query($sql);
+	$lots = [];
+	if ($r) {
+		while ($o = $db->fetch_object($r)) {
+			$id = (int) $o->bon_id;
+			if (!isset($lots[$id])) {
+				$lots[$id] = (object) [
+					'bon_id' => $id, 'ref' => $o->lot_ref, 'total' => (float) $o->lot_total,
+					'date_op' => $o->date_op, 'virements' => [], 'nb' => 0, 'nb_rappro' => 0, 'nb_libre' => 0,
+				];
+			}
+			$v = (object) [
+				'bank_id' => (int) $o->bank_id, 'pay_id' => (int) $o->pay_id,
+				'sepa' => $o->sepa, 'montant' => (float) $o->montant,
+				'rappro' => (int) $o->rappro, 'num_releve' => $o->num_releve,
+				'fac_ref' => $o->fac_ref, 'tiers' => $o->tiers,
+			];
+			$lots[$id]->virements[] = $v;
+			$lots[$id]->nb++;
+			if ($v->rappro) $lots[$id]->nb_rappro++; else if ($v->bank_id > 0) $lots[$id]->nb_libre++;
+		}
+		$db->free($r);
+	}
+	return $lots;
 }
 
 // ── Requête 1 : factures fournisseurs ayant au moins un paiement (année) ─────
@@ -361,7 +420,7 @@ $pack_colors = [
 ];
 
 // ── HTML ──────────────────────────────────────────────────────────────────────
-llxHeader("", "Helpy — Suivi des paiements", '', '', 0, 0, '', '', '', 'mod-agebf page-compta');
+llxHeader("", "Helpy — Rapprochement bancaire", '', '', 0, 0, '', '', '', 'mod-agebf page-compta');
 
 print '
 <style>
@@ -403,7 +462,7 @@ function bfToggleAll(openAll) {
 </script>
 ';
 
-print load_fiche_titre("Suivi des paiements SEPA — Rapprochement par facture", '', 'fa-exchange-alt');
+print load_fiche_titre("Rapprochement bancaire — paiements SEPA par facture", '', 'fa-exchange-alt');
 
 if ($msg_ok)  print '<div class="ok">'    . $msg_ok  . '</div>';
 if ($msg_err) print '<div class="error">' . $msg_err . '</div>';
@@ -494,63 +553,44 @@ if ($action === 'import_belfius') {
 		llxFooter(); $db->close(); exit;
 	}
 
-	// Virements non rapprochés (base de correspondance)
-	$libres = [];
-	foreach ($factures as $f) {
-		foreach ($f->payments as $p) {
-			if (!$p->rapproche) {
-				$libres[] = (object) [
-					'pay_id'  => (int) $p->pay_id,
-					'montant' => (float) $p->montant_paye,
-					'date'    => dol_print_date($db->jdate($p->date_paiement), '%Y-%m-%d'),
-					'tiers'   => $f->tiers_nom,
-					'fac_ref' => $f->fac_ref,
-					'sepa'    => $p->ref_sepa,
-				];
-			}
-		}
-	}
+	// Lots SEPA (bons de virement) disponibles dans Dolibarr — base de correspondance
+	$lots = bf_load_lots($db);
 
-	// Matching ligne par ligne
+	// Matching : 1 ligne banque (ORDRE COLLECTIF, montant global) -> 1 lot SEPA
+	// Cle principale : "FICHIER : DOL/.../CTxx" = id du bon de virement. Repli : par montant.
 	$matches = []; $cnt = ['sur' => 0, 'probable' => 0, 'ambigu' => 0, 'nomatch' => 0];
 	foreach ($parsed as $line) {
-		$cands = [];
-		$commn = bf_norm($line['comm']);
-		foreach ($libres as $v) {
-			if (abs($v->montant - $line['montant']) > 0.005) continue;
-			$score = 0;
-			if ($v->fac_ref !== '' && strpos($commn, bf_norm($v->fac_ref)) !== false) $score += 100;
-			if ($v->sepa   !== '' && strpos($commn, bf_norm($v->sepa))    !== false) $score += 100;
-			if ($line['date_iso'] !== '' && $line['date_iso'] === $v->date)          $score += 50;
-			if ($line['name'] !== '' && bf_norm($line['name']) === bf_norm($v->tiers)) $score += 30;
-			$cands[] = ['v' => $v, 'score' => $score];
+		$confiance = 'nomatch'; $lot = null;
+
+		if ($line['ct'] > 0 && isset($lots[$line['ct']])) {
+			// Reference de lot trouvee dans la communication
+			$lot  = $lots[$line['ct']];
+			$confiance = (abs($lot->total - $line['montant']) <= 0.01) ? 'sur' : 'probable';
+		} else {
+			// Repli : matcher par montant total de lot
+			$cands = [];
+			foreach ($lots as $L) {
+				if (abs($L->total - $line['montant']) <= 0.01) $cands[] = $L;
+			}
+			if (count($cands) === 1)      { $lot = $cands[0]; $confiance = 'probable'; }
+			elseif (count($cands) > 1)    { $lot = $cands[0]; $confiance = 'ambigu';   }
 		}
-		usort($cands, function ($a, $b) { return $b['score'] - $a['score']; });
-		$conf = 'nomatch'; $best = null;
-		if (!empty($cands)) {
-			$top = $cands[0]['score']; $ties = 0;
-			foreach ($cands as $c) if ($c['score'] === $top) $ties++;
-			$best = $cands[0]['v'];
-			if      ($top >= 100 && $ties === 1) $conf = 'sur';
-			elseif  ($top >= 50  && $ties === 1) $conf = 'probable';
-			elseif  (count($cands) === 1)        $conf = 'probable';
-			else                                  $conf = 'ambigu';
-		}
-		$cnt[$conf]++;
-		$matches[] = ['line' => $line, 'cands' => $cands, 'conf' => $conf, 'best' => $best];
+		$cnt[$confiance]++;
+		$matches[] = ['line' => $line, 'lot' => $lot, 'conf' => $confiance];
 	}
 
 	$badge = [
-		'sur'      => '<span style="color:#28a745;font-weight:bold">' . img_picto('', 'fa-check-circle', '') . ' S&ucirc;r</span>',
-		'probable' => '<span style="color:#fd7e14;font-weight:bold">' . img_picto('', 'fa-question-circle', '') . ' Probable</span>',
+		'sur'      => '<span style="color:#28a745;font-weight:bold">' . img_picto('', 'fa-check-circle', '') . ' S&ucirc;r (r&eacute;f. lot)</span>',
+		'probable' => '<span style="color:#fd7e14;font-weight:bold">' . img_picto('', 'fa-question-circle', '') . ' Probable (montant)</span>',
 		'ambigu'   => '<span style="color:#dc3545;font-weight:bold">' . img_picto('', 'fa-exclamation-triangle', '') . ' Ambigu</span>',
-		'nomatch'  => '<span style="color:#999">&mdash; Aucun virement</span>',
+		'nomatch'  => '<span style="color:#999">&mdash; Aucun lot trouv&eacute;</span>',
 	];
 
 	print '<div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:14px;margin-bottom:16px">';
-	print '<h3 style="margin:0 0 10px">' . img_picto('', 'fa-university', '') . ' V&eacute;rification du relev&eacute; Belfius &mdash; ' . count($matches) . ' transaction(s)</h3>';
-	print '<p style="margin:0 0 12px;color:#555">' . $cnt['sur'] . ' s&ucirc;r(s) &middot; ' . $cnt['probable'] . ' probable(s) &middot; <span style="color:#dc3545">' . $cnt['ambigu'] . ' ambigu(s)</span> &middot; ' . $cnt['nomatch'] . ' sans correspondance. '
-	    . '<b>Coche les lignes &agrave; rapprocher, ajuste les virements si besoin, puis valide.</b></p>';
+	print '<h3 style="margin:0 0 10px">' . img_picto('', 'fa-university', '') . ' V&eacute;rification du relev&eacute; Belfius &mdash; ' . count($matches) . ' ligne(s) de lot SEPA</h3>';
+	print '<p style="margin:0 0 12px;color:#555">' . $cnt['sur'] . ' s&ucirc;r(s) &middot; ' . $cnt['probable'] . ' probable(s) &middot; <span style="color:#dc3545">' . $cnt['ambigu'] . ' ambigu(s)</span> &middot; ' . $cnt['nomatch'] . ' sans lot. '
+	    . 'Chaque ligne du relev&eacute; est un <b>ordre collectif</b> regroupant plusieurs virements. '
+	    . '<b>Coche les lots &agrave; rapprocher, d&eacute;plie le d&eacute;tail si besoin, puis valide.</b></p>';
 
 	print '<form method="POST" action="' . $url_base . '">';
 	print '<input type="hidden" name="token"  value="' . newToken() . '">';
@@ -560,18 +600,19 @@ if ($action === 'import_belfius') {
 	print '<table class="noborder" style="width:100%;border-collapse:collapse">';
 	print '<tr class="liste_titre">';
 	print '<th style="text-align:center"><input type="checkbox" id="bf-chk-all" checked onclick="var a=this.checked;document.querySelectorAll(\'.bf-apply\').forEach(function(c){c.checked=a});"></th>';
-	print '<th>Date</th><th>N&deg; extrait</th><th class="right">Montant</th><th>Contrepartie</th><th>Communication</th><th>Confiance</th><th>Virement &agrave; rapprocher</th>';
+	print '<th>Date</th><th>N&deg; extrait</th><th class="right">Montant global</th><th>Communication</th><th>Confiance</th><th>Lot SEPA &amp; virements</th>';
 	print '</tr>';
 
 	foreach ($matches as $idx => $mm) {
-		$ln = $mm['line']; $conf = $mm['conf'];
-		$rowbg = ($conf === 'ambigu') ? ' style="background:#fff5f5"' : (($conf === 'nomatch') ? ' style="background:#f6f6f6;color:#999"' : '');
+		$ln = $mm['line']; $confiance = $mm['conf']; $lot = $mm['lot'];
+		$rowbg = ($confiance === 'ambigu') ? ' style="background:#fff5f5"' : (($confiance === 'nomatch') ? ' style="background:#f6f6f6;color:#999"' : '');
 		print '<tr class="oddeven"' . $rowbg . '>';
 
-		// checkbox
+		// checkbox : cochee si lot trouve, confiance sur/probable, et au moins 1 virement a pointer
+		$can_apply = ($lot !== null && $lot->nb_libre > 0);
 		print '<td style="text-align:center">';
-		if ($mm['best'] !== null) {
-			$checked = ($conf === 'sur' || $conf === 'probable') ? ' checked' : '';
+		if ($can_apply) {
+			$checked = ($confiance === 'sur' || $confiance === 'probable') ? ' checked' : '';
 			print '<input type="checkbox" class="bf-apply" name="apply[' . $idx . ']" value="1"' . $checked . '>';
 		}
 		print '</td>';
@@ -579,25 +620,43 @@ if ($action === 'import_belfius') {
 		print '<td style="white-space:nowrap">' . dol_escape_htmltag($ln['date_disp']) . '</td>';
 		print '<td style="white-space:nowrap"><b>' . dol_escape_htmltag($ln['extrait']) . '</b></td>';
 		print '<td class="right" style="white-space:nowrap;font-weight:bold">' . dol_escape_htmltag($ln['mont_disp']) . '&nbsp;&euro;</td>';
-		print '<td>' . dol_escape_htmltag($ln['name']) . '</td>';
-		print '<td style="font-size:0.9em">' . dol_escape_htmltag($ln['comm']) . '</td>';
-		print '<td style="white-space:nowrap">' . $badge[$conf] . '</td>';
+		print '<td style="font-size:0.85em;max-width:340px">' . dol_escape_htmltag($ln['comm']) . '</td>';
+		print '<td style="white-space:nowrap">' . $badge[$confiance] . '</td>';
 
-		// select virement + hidden extrait
+		// Lot SEPA + detail des virements
 		print '<td>';
 		print '<input type="hidden" name="sel_releve[' . $idx . ']" value="' . dol_escape_htmltag($ln['extrait']) . '">';
-		if (!empty($mm['cands'])) {
-			print '<select name="sel_pay[' . $idx . ']" style="padding:3px 6px;border:1px solid #ccc;border-radius:3px;max-width:380px">';
-			print '<option value="">&mdash; ne pas rapprocher &mdash;</option>';
-			foreach ($mm['cands'] as $c) {
-				$v = $c['v'];
-				$sel = ($mm['best'] && $v->pay_id === $mm['best']->pay_id) ? ' selected' : '';
-				$lbl = $v->fac_ref . ' · ' . $v->tiers . ' · ' . dol_print_date(dol_stringtotime($v->date), 'day') . ' · ' . price($v->montant) . ' €';
-				print '<option value="' . $v->pay_id . '"' . $sel . '>' . dol_escape_htmltag($lbl) . '</option>';
+		if ($lot !== null) {
+			print '<input type="hidden" name="sel_bon[' . $idx . ']" value="' . (int) $lot->bon_id . '">';
+			$ecart = abs($lot->total - $ln['montant']);
+			print '<div style="font-weight:600">' . dol_escape_htmltag($lot->ref) . ' <span style="color:#888;font-weight:normal">(CT' . (int) $lot->bon_id . ')</span></div>';
+			print '<div style="font-size:0.85em;color:#555">'
+			    . $lot->nb . ' virement(s) &middot; total ' . price($lot->total) . '&nbsp;&euro;'
+			    . ($ecart > 0.01 ? ' <span style="color:#dc3545">(&eacute;cart ' . price($ecart) . ' &euro;)</span>' : '')
+			    . '</div>';
+			if ($lot->nb_libre > 0) {
+				print '<div style="font-size:0.85em;color:#0d4dad;font-weight:600">' . $lot->nb_libre . ' &agrave; rapprocher'
+				    . ($lot->nb_rappro > 0 ? ' &middot; ' . $lot->nb_rappro . ' d&eacute;j&agrave; point&eacute;(s)' : '') . '</div>';
+			} else {
+				print '<div style="font-size:0.85em;color:#28a745;font-weight:600">' . img_picto('', 'fa-check-circle', '') . ' d&eacute;j&agrave; enti&egrave;rement rapproch&eacute;</div>';
 			}
-			print '</select>';
+			// detail expandable
+			print '<details style="margin-top:4px"><summary style="cursor:pointer;color:#0d6efd;font-size:0.82em">Voir le d&eacute;tail des ' . $lot->nb . ' virements</summary>';
+			print '<table style="width:100%;border-collapse:collapse;font-size:0.82em;margin-top:4px">';
+			foreach ($lot->virements as $v) {
+				$st = $v->rappro
+					? '<span style="color:#28a745">' . img_picto('', 'fa-check', '') . '</span>'
+					: '<span style="color:#dc3545">' . img_picto('', 'fa-times', '') . '</span>';
+				print '<tr style="border-bottom:1px solid #eee">'
+				    . '<td style="padding:2px 6px">' . $st . '</td>'
+				    . '<td style="padding:2px 6px">' . dol_escape_htmltag($v->fac_ref) . '</td>'
+				    . '<td style="padding:2px 6px">' . dol_escape_htmltag($v->tiers) . '</td>'
+				    . '<td style="padding:2px 6px;text-align:right">' . price($v->montant) . '&nbsp;&euro;</td>'
+				    . '</tr>';
+			}
+			print '</table></details>';
 		} else {
-			print '<span style="color:#999">aucun virement non point&eacute; &agrave; ce montant</span>';
+			print '<span style="color:#999">aucun lot SEPA &agrave; ce montant / cette r&eacute;f&eacute;rence</span>';
 		}
 		print '</td>';
 		print '</tr>';
@@ -605,7 +664,7 @@ if ($action === 'import_belfius') {
 	print '</table>';
 
 	print '<div style="margin-top:14px;display:flex;gap:10px">';
-	print '<button type="submit" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:bold">' . img_picto('', 'fa-check', '') . ' Valider et rapprocher les lignes coch&eacute;es</button>';
+	print '<button type="submit" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:bold">' . img_picto('', 'fa-check', '') . ' Valider et rapprocher les lots coch&eacute;s</button>';
 	print '<a href="' . $url_base . '?annee=' . $annee . '" style="padding:7px 18px;background:#6c757d;color:#fff;border-radius:3px;text-decoration:none">Annuler</a>';
 	print '</div>';
 	print '</form>';
