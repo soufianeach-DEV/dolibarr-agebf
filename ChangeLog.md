@@ -1,5 +1,19 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 3.8 (2026-06-03)
+
+### Amelioration : Suivi des paiements SEPA — rapprochement par facture
+
+- Vue **regroupee par facture** : 1 ligne par facture, ses virements deplies au clic (au lieu d'1 ligne par virement)
+- **Detail des packs** visible par facture (badges colores)
+- **Distinction claire** entre l'etat de paiement (Restant : vert si soldee, rouge sinon) et l'etat de pointage bancaire (Rapprochement)
+- **Pointage manuel** inline : saisie du n° de releve + bouton Rapprocher directement sur chaque virement, le detail reste ouvert apres action
+- **Import automatique du releve Belfius (CSV)** : analyse du releve, correspondance automatique avec les virements et niveau de confiance (Sur / Probable / Ambigu), validation/rapprochement en un clic
+- Reference SEPA cliquable (ouvre l'ecriture bancaire), bouton annuler le pointage (admin)
+- Rapprochement base sur `llx_paiementfourn.fk_bank` (au lieu de `llx_bank_url`)
+- Scripts de generation de donnees de test : `gen_test_data.php`, `gen_sepa_lots.php` (lots SEPA + XML pain.001), `gen_releve_belfius.php` (releve CSV)
+- ZIP : `module_agebf-3.8.zip`
+
 ## 3.7 (2026-06-02)
 
 ### Nouvelle fonctionnalite : Suivi des paiements SEPA
