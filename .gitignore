@@ -6,6 +6,9 @@
 # PHP
 *.cache
 
+# Build artifacts (ZIP attaches aux releases GitHub, pas commites)
+/build/*.zip
+
 # OS
 .DS_Store
 Thumbs.db

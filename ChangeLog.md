@@ -1,5 +1,15 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 4.1 (2026-06-04)
+
+### Nouvelle fonctionnalite : preparation du lot de virements SEPA en 1 clic + parcours guide
+
+- **Bouton « Preparer le lot de virements SEPA »** sur la page *Paiements a effectuer*. En un clic, le module cree les demandes de virement (`demande_prelevement`, API standard Dolibarr) pour toutes les factures fournisseurs impayees de l'annee affichee, puis renvoie vers l'ecran standard Dolibarr de generation du fichier SEPA.
+- **Point de controle humain conserve** : le bouton *prepare* les demandes mais ne genere PAS le fichier de virement. C'est l'utilisateur qui verifie la liste, choisit le compte emetteur et la date, puis genere le fichier SEPA. Aucun paiement ne part automatiquement.
+- **Fil du workflow** ajoute en haut des deux pages : « 1. Paiements a effectuer -> 2. Rapprochement bancaire », l'etape courante en surbrillance et l'autre cliquable. Les deux phases du processus sont desormais reliees explicitement dans l'ecran (et plus seulement via le menu).
+- **Aucun fichier ni table standard de Dolibarr n'est modifie** : la fonctionnalite s'appuie integralement sur l'API existante `demande_prelevement()` et sur l'ecran standard `compta/prelevement/create.php`.
+- ZIP : `module_agebf-4.1.zip`
+
 ## 3.10 (2026-06-04)
 
 ### Amelioration : rapprochement Belfius par reference SEPA (cle texte infaillible)

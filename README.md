@@ -3,7 +3,7 @@
 > Module custom développé dans le cadre d'un stage chez **Bruxelles Formation**.
 
 **Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
-**Version :** 3.10  
+**Version :** 4.1  
 **Compatibilité :** Dolibarr 19+, PHP 8.0+
 
 ---
@@ -124,7 +124,7 @@ agebf/
 ├── agebf_compta.php                  # Rapprochement bancaire : virements SEPA, detail packs, import Belfius
 ├── core/
 │   └── modules/
-│       └── modAgeBF.class.php        # Descripteur v3.10 (cron, extrafields, menus)
+│       └── modAgeBF.class.php        # Descripteur v4.1 (cron, extrafields, menus)
 ├── class/
 │   └── agebf.class.php               # Logique de calcul + propagation vers Tiers
 ├── admin/
@@ -145,7 +145,7 @@ agebf/
 
 ### Méthode 1 — ZIP via l'interface Dolibarr (recommandée)
 
-1. Télécharger **`module_agebf-3.10.zip`** depuis la [page Releases](https://github.com/soufianeach-DEV/dolibarr-agebf/releases)
+1. Télécharger **`module_agebf-4.1.zip`** depuis la [page Releases](https://github.com/soufianeach-DEV/dolibarr-agebf/releases)
 2. Dans Dolibarr : **Configuration → Modules/Applications**
 3. Cliquer sur l'onglet **"Déployer/Installer un module externe"**
 4. Choisir le fichier ZIP → **Envoyer le fichier**
@@ -220,6 +220,8 @@ Après activation, le menu **Helpy** apparaît dans la barre du haut avec quatre
 | Filtres colonne | Pack (dropdown), Tiers/Bénéficiaire, N° facture, OGM, Montant min/max |
 | Tableau | Pack (badge couleur) / Tiers + bénéficiaire / N° facture / OGM / Date / Montant / Payé / Statut / Dernier paiement / Virement |
 | Statuts | **Soldée** (3/3) / **Partielle** (1/3 ou 2/3) / **Impayée** (aucun versement) |
+| Fil du workflow | Bandeau cliquable en haut : **1. Paiements à effectuer → 2. Rapprochement bancaire** (étape courante en surbrillance) |
+| **Bouton Préparer le lot de virements SEPA** | Crée en 1 clic les demandes de virement (API standard `demande_prelevement`) pour toutes les factures impayées de l'année, puis renvoie vers l'écran standard Dolibarr de génération du fichier SEPA. **Ne génère pas le fichier** : la validation et la génération restent un geste humain |
 | Bouton Voir | Ouvre la fiche facture fournisseur dans un modal (80 % de l'écran) |
 | Bouton Préparer virement | Ouvre la fiche facture fournisseur Dolibarr pour enregistrer un paiement |
 | Lien Écritures | Filtre la liste des écritures bancaires Belfius par référence de facture |
@@ -232,6 +234,7 @@ Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mai
 
 | Élément | Description |
 |---|---|
+| Fil du workflow | Bandeau cliquable en haut : **1. Paiements à effectuer → 2. Rapprochement bancaire** (étape courante en surbrillance) |
 | Bandeau stats | Nb virements / Rapprochés / Non rapprochés / Montants total, rapproché, non rapproché |
 | Filtres | Année, statut rapproché (Tous / Oui / Non), recherche par référence SEPA |
 | Vue regroupée par facture | 1 ligne par facture, ses virements dépliés au clic — relevé Belfius (cliquable), rapproché ✅/❌, montant |

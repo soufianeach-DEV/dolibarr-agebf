@@ -28,6 +28,42 @@ if (!in_array($statut, ['tous', 'soldee', 'partielle', 'impayee'])) $statut = 't
 
 $url_base = DOL_URL_ROOT . '/custom/agebf/agebf_packs.php';
 
+// ── Action : préparer en lot les demandes de virement SEPA (fournisseur) ───────
+// Pour chaque facture fournisseur IMPAYÉE de l'année, on crée une demande de virement
+// via l'API STANDARD Dolibarr demande_prelevement() (remplit llx_prelevement_demande),
+// puis on renvoie vers l'écran standard « Virements fournisseurs » pour VÉRIFIER et
+// GÉNÉRER le fichier SEPA. On ne réécrit AUCUNE génération : rien n'est payé tant que
+// l'utilisateur ne génère pas le bon côté Dolibarr (point de contrôle humain conservé).
+$action = GETPOST('action', 'aZ09');
+if ($action === 'prepare_sepa_batch' && $user->hasRight('fournisseur', 'facture', 'creer')) {
+	require_once DOL_DOCUMENT_ROOT . '/fourn/class/fournisseur.facture.class.php';
+	$sqlb = "SELECT f.rowid FROM " . MAIN_DB_PREFIX . "facture_fourn f"
+	      . " WHERE f.entity = " . (int) $conf->entity
+	      . " AND f.fk_statut >= 1 AND f.paye = 0"
+	      . " AND YEAR(f.datef) = " . (int) $annee
+	      . " ORDER BY f.rowid";
+	$rb = $db->query($sqlb);
+	$nb_ok = 0; $nb_skip = 0; $nb_err = 0; $errs = [];
+	if ($rb) {
+		while ($ob = $db->fetch_object($rb)) {
+			$fac = new FactureFournisseur($db);
+			if ($fac->fetch((int) $ob->rowid) <= 0) { $nb_err++; continue; }
+			$r = $fac->demande_prelevement($user, 0, 'bank-transfer', 'supplier_invoice');
+			if ($r > 0)        $nb_ok++;
+			elseif ($r === 0)  $nb_skip++;                 // demande déjà existante -> ignorée
+			else { $nb_err++; if (!empty($fac->error)) $errs[] = $fac->ref . ' : ' . $fac->error; }
+		}
+		$db->free($rb);
+	}
+	if ($nb_ok > 0)   setEventMessages($nb_ok . ' demande(s) de virement créée(s). Vérifiez puis générez le fichier SEPA ci-dessous.', null, 'mesgs');
+	if ($nb_skip > 0) setEventMessages($nb_skip . ' facture(s) avaient déjà une demande en attente (ignorées).', null, 'warnings');
+	if ($nb_err > 0)  setEventMessages($nb_err . ' erreur(s)' . (count($errs) ? ' : ' . implode(' ; ', array_slice($errs, 0, 5)) : ''), null, 'errors');
+	if ($nb_ok === 0 && $nb_skip === 0 && $nb_err === 0) setEventMessages('Aucune facture impayée à préparer pour ' . $annee . '.', null, 'warnings');
+	// Renvoi vers l'écran standard de génération du fichier SEPA fournisseur
+	header('Location: ' . DOL_URL_ROOT . '/compta/prelevement/create.php?type=bank-transfer');
+	exit;
+}
+
 // ── Requête principale ────────────────────────────────────────────────────────
 $sql = "SELECT
     f.rowid          AS fac_id,
@@ -228,6 +264,14 @@ document.addEventListener("keydown", function(e) { if (e.key === "Escape") bfClo
 
 print load_fiche_titre("Paiements à effectuer — factures par pack", '', 'fa-file-invoice-dollar');
 
+// ── Fil du workflow (étape 1 / 2) ─────────────────────────────────────────────
+$url_compta = DOL_URL_ROOT . '/custom/agebf/agebf_compta.php';
+print '<div style="display:flex;align-items:center;gap:8px;margin:2px 0 14px 0;font-size:0.88em">';
+print '<span style="background:#0e6fb5;color:#fff;border-radius:14px;padding:4px 12px;font-weight:bold">1. Paiements à effectuer</span>';
+print '<span style="color:#999">&rarr;</span>';
+print '<a href="' . $url_compta . '" style="background:#eef3f8;color:#0e6fb5;border-radius:14px;padding:4px 12px;text-decoration:none;border:1px solid #bcd4ea">2. Rapprochement bancaire</a>';
+print '</div>';
+
 // ── Bandeau stats (cartes flex) ───────────────────────────────────────────────
 $stats = [
     ['label' => 'Factures ' . $annee,  'value' => $nb_total,                              'color' => '#333'],
@@ -247,6 +291,29 @@ foreach ($stats as $st) {
     print '</div>';
 }
 print '</div>';
+
+// ── Bouton : préparer le lot de virements SEPA ────────────────────────────────
+if ($user->hasRight('fournisseur', 'facture', 'creer')) {
+    $msg_confirm = 'Créer les demandes de virement pour toutes les factures impayées de '
+        . $annee . ' ?\n\nAucun paiement n\\\'est effectué à cette étape : '
+        . 'vous vérifierez la liste puis générerez vous-même le fichier SEPA à l\\\'écran suivant.';
+    print '<div style="margin:4px 0 14px 0">';
+    print '<form method="POST" action="' . $url_base . '" style="display:inline"'
+        . ' onsubmit="return confirm(\'' . $msg_confirm . '\');">';
+    print '<input type="hidden" name="token" value="' . newToken() . '">';
+    print '<input type="hidden" name="action" value="prepare_sepa_batch">';
+    print '<input type="hidden" name="annee" value="' . dol_escape_htmltag((string) $annee) . '">';
+    print '<button type="submit" style="background:#0e6fb5;color:#fff;border:none;border-radius:5px;'
+        . 'padding:9px 16px;font-size:0.9em;font-weight:bold;cursor:pointer;display:inline-flex;'
+        . 'align-items:center;gap:7px;box-shadow:0 1px 3px rgba(0,0,0,.12)">'
+        . img_picto('', 'fa-university', 'class="fa-fw"') . ' Préparer le lot de virements SEPA (' . $annee . ')'
+        . '</button>';
+    print '</form>';
+    print '<span style="margin-left:12px;font-size:0.8em;color:#777;vertical-align:middle">'
+        . 'Crée les demandes de virement pour les factures impayées de l\'année, puis ouvre l\'écran standard Dolibarr de génération du fichier SEPA.'
+        . '</span>';
+    print '</div>';
+}
 
 // ── Formulaire principal (filtres globaux + colonne) ──────────────────────────
 print '<div class="fichecenter">';

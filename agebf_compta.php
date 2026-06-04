@@ -503,6 +503,14 @@ function bfToggleAll(openAll) {
 
 print load_fiche_titre("Rapprochement bancaire — paiements SEPA par facture", '', 'fa-exchange-alt');
 
+// ── Fil du workflow (étape 2 / 2) ─────────────────────────────────────────────
+$url_packs = DOL_URL_ROOT . '/custom/agebf/agebf_packs.php';
+print '<div style="display:flex;align-items:center;gap:8px;margin:2px 0 14px 0;font-size:0.88em">';
+print '<a href="' . $url_packs . '" style="background:#eef3f8;color:#0e6fb5;border-radius:14px;padding:4px 12px;text-decoration:none;border:1px solid #bcd4ea">1. Paiements à effectuer</a>';
+print '<span style="color:#999">&rarr;</span>';
+print '<span style="background:#0e6fb5;color:#fff;border-radius:14px;padding:4px 12px;font-weight:bold">2. Rapprochement bancaire</span>';
+print '</div>';
+
 if ($msg_ok)  print '<div class="ok">'    . $msg_ok  . '</div>';
 if ($msg_err) print '<div class="error">' . $msg_err . '</div>';
 
