@@ -37,6 +37,15 @@ ksort($mois);
 foreach (['prelevement', 'prelevement_lignes', 'prelevement_demande', 'prelevement_bons'] as $t) {
     $db->query("DELETE FROM {$P}{$t}");
 }
+// Table de correspondance MsgId/CTxx <-> bon (cle texte infaillible cote agebf_compta.php).
+$db->query("CREATE TABLE IF NOT EXISTS {$P}agebf_lot_sepa ("
+    . " fk_bon integer NOT NULL,"
+    . " msgid varchar(64) DEFAULT NULL,"
+    . " ct_num integer DEFAULT NULL,"
+    . " entity integer NOT NULL DEFAULT 1,"
+    . " PRIMARY KEY (fk_bon)"
+    . ") ENGINE=InnoDB");
+$db->query("DELETE FROM {$P}agebf_lot_sepa");
 
 // --- 3. Pour chaque mois : un bon de virement + ses lignes + le XML --------------
 $idx_lot = 0;
@@ -46,7 +55,8 @@ foreach ($mois as $ym => $lignes) {
     $idx_lot++;
     $annee = substr($ym, 0, 4);
     $mm    = substr($ym, 4, 2);
-    $ref   = 'ECH' . $ym;                       // ex: ECH202601 (varchar(12))
+    // ref du bon au format PRODUCTION Belfius : T<YY><MM><NN> (ex T260102), varchar(12)
+    $ref   = 'T' . substr($annee, 2, 2) . $mm . str_pad((string) $idx_lot, 2, '0', STR_PAD_LEFT);
     $total = 0.0;
     foreach ($lignes as $l) { $total += (float) $l->montant; }
     $total = round($total, 2);
@@ -63,19 +73,22 @@ foreach ($mois as $ym => $lignes) {
 
     // 3b. lignes / demandes / prelevement pour chaque paiement du lot
     $xml_tx = [];
+    $pay_ids = [];                              // paiements de ce lot (pour aligner num_paiement)
     foreach ($lignes as $l) {
         $total_tx++;
+        $pay_ids[(int)$l->pay_id] = true;
         $sup_iban = 'BE' . str_pad((string)(10 + $l->pay_id), 2, '0', STR_PAD_LEFT)
                   . '00000000' . str_pad((string)$l->pay_id, 4, '0', STR_PAD_LEFT);
         $mont = round((float) $l->montant, 2);
 
-        // ligne (par beneficiaire) — number = num_paiement (T-number) pour lier
-        // sans ambiguite le lot a son virement (paiementfourn.num_paiement)
+        // ligne (par beneficiaire) — number = IBAN du beneficiaire, comme en PRODUCTION
+        // (confirme par Philip 2026-06-03). Le lien lot->virement ne passe donc PAS par
+        // number : il se fait via paiementfourn.num_paiement = prelevement_bons.ref (voir UPDATE ci-dessous).
         $db->query("INSERT INTO {$P}prelevement_lignes
             (fk_prelevement_bons, fk_soc, fk_user, statut, client_nom, amount, number)
             VALUES ($bon_id, " . (int)$l->soc_id . ", 1, 2,
                     '" . $db->real_escape_string($l->tiers) . "', $mont,
-                    '" . $db->real_escape_string($l->ref_sepa) . "')");
+                    '" . $db->real_escape_string($sup_iban) . "')");
         $ligne_id = $db->insert_id;
 
         // demande (lien facture -> bon)
@@ -97,6 +110,14 @@ foreach ($mois as $ym => $lignes) {
             'nom'  => $l->tiers,
             'comm' => $l->facture . ' - cotisation',
         ];
+    }
+
+    // 3b-bis. Aligner num_paiement des virements du lot sur la ref du bon (= PRODUCTION).
+    // En prod, tous les paiements d'un ordre collectif portent num_paiement = ref du fichier SEPA
+    // (ex T260102). C'est la cle de jointure lot->virements utilisee par agebf_compta.php.
+    if (!empty($pay_ids)) {
+        $ids = implode(',', array_map('intval', array_keys($pay_ids)));
+        $db->query("UPDATE {$P}paiementfourn SET num_paiement = '" . $db->real_escape_string($ref) . "' WHERE rowid IN ($ids)");
     }
 
     // 3c. fichier XML pain.001.001.03
@@ -140,9 +161,14 @@ foreach ($lots_csv as $lot) {
     $extrait  = substr($lot['ym'], 0, 4) . '/' . str_pad((string)$i, 4, '0', STR_PAD_LEFT);
     $groupe   = 'DOL/' . substr($lot['ym'], 0, 4) . substr($lot['ym'], 4, 2) . '/0000';
     $ref_bq   = '0801' . strtoupper(substr(md5($lot['ref']), 0, 9));
-    $comm     = 'VOTRE ORDRE COLLECTIF BELFIUS DIRECT NET BUS. FICHIER  : DOL/' . $ymd
-              . '/CT' . $lot['bon_id'] . ' GROUPE : ' . $groupe
+    $msgid    = 'DOL/' . $ymd . '/CT' . $lot['bon_id'];        // = <MsgId> du fichier SEPA
+    $comm     = 'VOTRE ORDRE COLLECTIF BELFIUS DIRECT NET BUS. FICHIER  : ' . $msgid
+              . ' GROUPE : ' . $groupe
               . '           REF. : ' . $ref_bq . ' VAL. ' . $ddmm;
+    // memoriser la cle texte (MsgId + CTxx) pour le rapprochement infaillible cote module
+    $db->query("INSERT INTO {$P}agebf_lot_sepa (fk_bon, msgid, ct_num, entity) VALUES ("
+        . (int)$lot['bon_id'] . ", '" . $db->real_escape_string($msgid) . "', "
+        . (int)$lot['bon_id'] . ", 1)");
     $champs = [
         'BE68 5390 0754 7034', $dd, $extrait, (string)(2026100000 + $i),
         '', '', '', '',

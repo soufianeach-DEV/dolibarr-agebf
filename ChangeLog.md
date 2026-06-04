@@ -1,5 +1,17 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 3.10 (2026-06-04)
+
+### Amelioration : rapprochement Belfius par reference SEPA (cle texte infaillible)
+
+- **Rapprochement par reference SEPA** : la communication de chaque ordre collectif Belfius contient `FICHIER : DOL/AAAAMMJJ/CTxx`, qui est exactement le `<MsgId>` du fichier SEPA genere par Dolibarr. Le module stocke ce MsgId par lot et retrouve donc le bon de virement **au texte exact** (zero ambiguite), au lieu de deviner par montant + date.
+- **Matching a deux niveaux** :
+  1. **Sur (ref. SEPA)** — le CTxx du releve correspond a un MsgId connu -> correspondance certaine.
+  2. **Repli automatique** (lots sans MsgId enregistre) — ancienne logique montant total + date (Sur / Probable / Ambigu).
+- **Nouvelle table du module** `llx_agebf_lot_sepa` (fk_bon, msgid, ct_num, entity) creee automatiquement. **Aucune table standard de Dolibarr n'est modifiee** : la fonctionnalite est purement additive et se desactive sans effet sur le coeur.
+- Tant que la table n'est pas alimentee (ex. juste apres installation), le rapprochement fonctionne normalement via le repli montant + date.
+- ZIP : `module_agebf-3.10.zip`
+
 ## 3.9 (2026-06-03)
 
 ### Amelioration : import Belfius scenario B + clarification des menus

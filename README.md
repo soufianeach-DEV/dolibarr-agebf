@@ -3,7 +3,7 @@
 > Module custom développé dans le cadre d'un stage chez **Bruxelles Formation**.
 
 **Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
-**Version :** 3.9  
+**Version :** 3.10  
 **Compatibilité :** Dolibarr 19+, PHP 8.0+
 
 ---
@@ -79,13 +79,16 @@ Le module repose sur le modèle natif Dolibarr :
 
 Le relevé Belfius présente chaque ordre collectif SEPA comme **une seule ligne globale** (montant total, sans détail des bénéficiaires). L'import CSV applique ce « scénario B » :
 
-1. Le module lit la communication de chaque ligne et y retrouve la référence du lot `FICHIER : DOL/AAAAMMJJ/CTxx`
-2. Il rapproche la ligne au lot SEPA correspondant et affiche un **niveau de confiance** :
-   - **Sûr** — référence du lot trouvée *et* montant identique
-   - **Probable** — référence trouvée mais montant différent, *ou* aucune référence mais un seul lot correspond par montant
-   - **Ambigu** — aucune référence et plusieurs lots correspondent au même montant
-   - **Aucun lot** — aucune correspondance
-3. En un clic, tous les virements du lot sélectionné passent en `rappro = 1` avec le N° de relevé Belfius
+1. Le module lit la communication de chaque ligne et y retrouve la référence du lot `FICHIER : DOL/AAAAMMJJ/CTxx` — qui est exactement le `<MsgId>` du fichier SEPA généré par Dolibarr.
+2. Il rapproche la ligne au lot SEPA correspondant en **deux niveaux** et affiche le **niveau de confiance** :
+   - **Sûr (réf. SEPA)** — le `CTxx` du relevé correspond à un `MsgId` enregistré dans la table `llx_agebf_lot_sepa` → correspondance **exacte au texte**, aucune ambiguïté possible.
+   - **Sûr (montant + date)** — repli : un seul lot correspond par montant total *et* date proche.
+   - **Probable** — repli : un seul lot par montant mais date éloignée, ou plusieurs lots dont la date en isole un.
+   - **Ambigu** — repli : plusieurs lots au même montant et la date ne tranche pas.
+   - **Aucun lot** — aucune correspondance.
+3. En un clic, tous les virements du lot sélectionné passent en `rappro = 1` avec le N° de relevé Belfius.
+
+> La référence SEPA (`MsgId`) est stockée dans une table **propre au module** (`llx_agebf_lot_sepa`), créée automatiquement. Aucune table standard de Dolibarr n'est modifiée. Tant que cette table n'est pas alimentée, le rapprochement fonctionne via le repli montant + date.
 
 ---
 
@@ -121,7 +124,7 @@ agebf/
 ├── agebf_compta.php                  # Rapprochement bancaire : virements SEPA, detail packs, import Belfius
 ├── core/
 │   └── modules/
-│       └── modAgeBF.class.php        # Descripteur v3.9 (cron, extrafields, menus)
+│       └── modAgeBF.class.php        # Descripteur v3.10 (cron, extrafields, menus)
 ├── class/
 │   └── agebf.class.php               # Logique de calcul + propagation vers Tiers
 ├── admin/
@@ -142,7 +145,7 @@ agebf/
 
 ### Méthode 1 — ZIP via l'interface Dolibarr (recommandée)
 
-1. Télécharger **`module_agebf-3.9.zip`** depuis la [page Releases](https://github.com/soufianeach-DEV/dolibarr-agebf/releases)
+1. Télécharger **`module_agebf-3.10.zip`** depuis la [page Releases](https://github.com/soufianeach-DEV/dolibarr-agebf/releases)
 2. Dans Dolibarr : **Configuration → Modules/Applications**
 3. Cliquer sur l'onglet **"Déployer/Installer un module externe"**
 4. Choisir le fichier ZIP → **Envoyer le fichier**
@@ -233,7 +236,7 @@ Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mai
 | Filtres | Année, statut rapproché (Tous / Oui / Non), recherche par référence SEPA |
 | Vue regroupée par facture | 1 ligne par facture, ses virements dépliés au clic — relevé Belfius (cliquable), rapproché ✅/❌, montant |
 | Détail expandable ▶ | Tiers + Pack (badge coloré) + N° facture + Montant payé pour chaque virement |
-| **Import Belfius (CSV)** | Charge le relevé scénario B, retrouve le lot via `FICHIER : DOL/AAAAMMJJ/CTxx`, affiche le niveau de confiance (Sûr / Probable / Ambigu / Aucun lot), rapproche tout le lot en un clic |
+| **Import Belfius (CSV)** | Charge le relevé scénario B, retrouve le lot par **référence SEPA** (`MsgId` = `FICHIER : DOL/AAAAMMJJ/CTxx`) ou, à défaut, par montant + date ; affiche le niveau de confiance (Sûr réf. SEPA / Sûr montant+date / Probable / Ambigu / Aucun lot), rapproche tout le lot en un clic |
 | **Rapprochement inline** | Sur chaque virement non rapproché : saisir le N° relevé Belfius (ex: `2026/0003`) + cliquer **Rapprocher** → `llx_bank.rappro = 1` |
 | Annulation (admin) | Bouton **Ann.** sur les lignes déjà rapprochées — accessible aux admins uniquement, avec confirmation |
 | Liens directs | Fiche paiement fournisseur, écritures bancaires Belfius, fiche facture, fiche Tiers |

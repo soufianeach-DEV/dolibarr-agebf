@@ -166,7 +166,9 @@ function bf_parse_belfius($path) {
 		$mf  = (float) str_replace(',', '.', str_replace('.', '', $mraw));
 		$dd  = $gc('date'); $diso = '';
 		if (preg_match('#(\d{2})/(\d{2})/(\d{4})#', $dd, $m)) $diso = $m[3] . '-' . $m[2] . '-' . $m[1];
-		// Reference du lot SEPA : "FICHIER : DOL/AAAAMMJJ/CTxx" -> CTxx = id du bon de virement Dolibarr
+		// "FICHIER : DOL/AAAAMMJJ/CTxx" : le CTxx est genere par Belfius et n'a PAS d'equivalent
+		// dans Dolibarr (confirme par Philip 2026-06-03) -> conserve pour info mais NON utilise
+		// comme cle (le matching se fait par montant + date). Voir le moteur de matching.
 		$ct = 0;
 		if (preg_match('#DOL/\d{6,8}/CT0*(\d+)#i', $gc('comm'), $mc)) $ct = (int) $mc[1];
 		$out[] = [
@@ -183,27 +185,50 @@ function bf_parse_belfius($path) {
 	return $out;
 }
 
+// ── Helper : deux dates (YYYY-MM-DD) proches a +/- $tol jours ? ──────────────
+function bf_date_close($a, $b, $tol = 5) {
+	if (empty($a) || empty($b)) return false;
+	$ta = strtotime($a); $tb = strtotime($b);
+	if ($ta === false || $tb === false) return false;
+	return abs($ta - $tb) <= $tol * 86400;
+}
+
 // ── Helper : charger les lots SEPA (bons de virement) + leurs virements ───────
 // Retourne [ bon_id => objet { ref, total, date_op, virements:[...], nb, nb_rappro, nb_libre } ].
-// Lien : prelevement_bons -> prelevement_lignes.number (= num_paiement) -> paiementfourn -> bank.
-// NB production : si Dolibarr stocke l'IBAN (et non le num_paiement) dans prelevement_lignes.number,
-// adapter ici la jointure lot->paiement (c'est le seul point a changer).
+// Lien (CONFIRME PROD par Philip 2026-06-03) : tous les virements d'un ordre collectif
+// portent paiementfourn.num_paiement = prelevement_bons.ref (ex T260102). On joint donc
+// directement le bon a ses paiements par cette ref, puis fk_bank -> bank pour l'etat de
+// rapprochement, et facture/societe (via paiementfourn_facturefourn) pour l'affichage.
+// On NE passe PLUS par prelevement_lignes.number (= IBAN en prod, non fiable pour ce lien).
 function bf_load_lots($db) {
 	$P = MAIN_DB_PREFIX;
+	$entity = (int) $GLOBALS['conf']->entity;
+	// Table du module (cle texte infaillible) : le MsgId du fichier SEPA (ex DOL/20260113/CT29)
+	// et son numero CTxx. Stockee a la generation du lot (ou backfill depuis les XML en prod).
+	// Permet de retrouver le bon a partir du CTxx present dans la communication du releve Belfius,
+	// sans dependre d'une hypothese rowid. Cree a la volee si absente (idempotent, pas de patch coeur).
+	$db->query("CREATE TABLE IF NOT EXISTS {$P}agebf_lot_sepa ("
+	    . " fk_bon integer NOT NULL,"
+	    . " msgid varchar(64) DEFAULT NULL,"
+	    . " ct_num integer DEFAULT NULL,"
+	    . " entity integer NOT NULL DEFAULT 1,"
+	    . " PRIMARY KEY (fk_bon)"
+	    . ") ENGINE=InnoDB");
 	$sql = "SELECT pb.rowid AS bon_id, pb.ref AS lot_ref, pb.amount AS lot_total,
 	               DATE_FORMAT(pb.date_credit, '%Y-%m-%d') AS date_op,
-	               pl.rowid AS ligne_id, pl.number AS tnum, pl.client_nom AS tiers, pl.amount AS montant,
-	               pay.rowid AS pay_id, pay.num_paiement AS sepa, pay.fk_bank AS bank_id,
+	               pay.rowid AS pay_id, pay.num_paiement AS sepa, pay.amount AS montant, pay.fk_bank AS bank_id,
 	               COALESCE(b.rappro, 0) AS rappro, COALESCE(b.num_releve, '') AS num_releve,
-	               f.ref AS fac_ref
+	               s.nom AS tiers, f.ref AS fac_ref,
+	               ls.msgid AS msgid, ls.ct_num AS ct_num
 	        FROM {$P}prelevement_bons pb
-	        JOIN {$P}prelevement_lignes pl ON pl.fk_prelevement_bons = pb.rowid
-	        LEFT JOIN {$P}paiementfourn pay ON pay.num_paiement = pl.number
+	        JOIN {$P}paiementfourn pay ON pay.num_paiement = pb.ref AND pay.entity = pb.entity
 	        LEFT JOIN {$P}bank b ON b.rowid = pay.fk_bank
-	        LEFT JOIN {$P}prelevement pr ON pr.fk_prelevement_lignes = pl.rowid
-	        LEFT JOIN {$P}facture_fourn f ON f.rowid = pr.fk_facture_fourn
-	        WHERE pb.type = 'bank-transfer' AND pb.entity = " . (int) $GLOBALS['conf']->entity . "
-	        ORDER BY pb.rowid, pl.rowid";
+	        LEFT JOIN {$P}paiementfourn_facturefourn pff ON pff.fk_paiementfourn = pay.rowid
+	        LEFT JOIN {$P}facture_fourn f ON f.rowid = pff.fk_facturefourn
+	        LEFT JOIN {$P}societe s ON s.rowid = f.fk_soc
+	        LEFT JOIN {$P}agebf_lot_sepa ls ON ls.fk_bon = pb.rowid
+	        WHERE pb.type = 'bank-transfer' AND pb.entity = " . $entity . "
+	        ORDER BY pb.rowid, pay.rowid";
 	$r = $db->query($sql);
 	$lots = [];
 	if ($r) {
@@ -212,21 +237,35 @@ function bf_load_lots($db) {
 			if (!isset($lots[$id])) {
 				$lots[$id] = (object) [
 					'bon_id' => $id, 'ref' => $o->lot_ref, 'total' => (float) $o->lot_total,
-					'date_op' => $o->date_op, 'virements' => [], 'nb' => 0, 'nb_rappro' => 0, 'nb_libre' => 0,
+					'date_op' => $o->date_op, 'virements' => [], '_seen' => [],
+					'msgid' => (string) $o->msgid, 'ct_num' => (int) $o->ct_num,
+					'nb' => 0, 'nb_rappro' => 0, 'nb_libre' => 0,
 				];
 			}
+			$pid = (int) $o->pay_id;
+			// un paiement peut couvrir plusieurs factures (plusieurs lignes pff) :
+			// 1 seul virement par paiement, on complete juste la ref facture.
+			if (isset($lots[$id]->_seen[$pid])) {
+				if (!empty($o->fac_ref)) {
+					$ex = $lots[$id]->_seen[$pid];
+					$ex->fac_ref = trim($ex->fac_ref . ' ' . $o->fac_ref);
+				}
+				continue;
+			}
 			$v = (object) [
-				'bank_id' => (int) $o->bank_id, 'pay_id' => (int) $o->pay_id,
+				'bank_id' => (int) $o->bank_id, 'pay_id' => $pid,
 				'sepa' => $o->sepa, 'montant' => (float) $o->montant,
 				'rappro' => (int) $o->rappro, 'num_releve' => $o->num_releve,
-				'fac_ref' => $o->fac_ref, 'tiers' => $o->tiers,
+				'fac_ref' => (string) $o->fac_ref, 'tiers' => (string) $o->tiers,
 			];
 			$lots[$id]->virements[] = $v;
+			$lots[$id]->_seen[$pid] = $v;
 			$lots[$id]->nb++;
 			if ($v->rappro) $lots[$id]->nb_rappro++; else if ($v->bank_id > 0) $lots[$id]->nb_libre++;
 		}
 		$db->free($r);
 	}
+	foreach ($lots as $L) { unset($L->_seen); }
 	return $lots;
 }
 
@@ -556,39 +595,61 @@ if ($action === 'import_belfius') {
 	// Lots SEPA (bons de virement) disponibles dans Dolibarr — base de correspondance
 	$lots = bf_load_lots($db);
 
-	// Matching : 1 ligne banque (ORDRE COLLECTIF, montant global) -> 1 lot SEPA
-	// Cle principale : "FICHIER : DOL/.../CTxx" = id du bon de virement. Repli : par montant.
-	$matches = []; $cnt = ['sur' => 0, 'probable' => 0, 'ambigu' => 0, 'nomatch' => 0];
+	// Matching : 1 ligne banque (ORDRE COLLECTIF, montant global) -> 1 lot SEPA.
+	// 1) CLE TEXTE INFAILLIBLE : la communication du releve porte "FICHIER : DOL/AAAAMMJJ/CTxx"
+	//    = le <MsgId> du fichier SEPA. On a stocke ce MsgId/CTxx par lot (table agebf_lot_sepa),
+	//    donc si le CTxx du releve correspond a un lot connu -> match exact, zero ambiguite.
+	// 2) REPLI (lots sans MsgId stocke, ex anciens lots) : MONTANT total du lot + DATE proche.
+	//      - montant unique + date proche       -> Sur
+	//      - montant unique, date eloignee       -> Probable
+	//      - plusieurs lots, date isole 1 seul   -> Probable
+	//      - plusieurs lots, date ne tranche pas -> Ambigu
+	//      - aucun lot a ce montant              -> Aucun lot
+	$byct = [];
+	foreach ($lots as $L) { if (!empty($L->ct_num)) $byct[(int) $L->ct_num] = $L; }
+
+	$matches = []; $cnt = ['exact' => 0, 'sur' => 0, 'probable' => 0, 'ambigu' => 0, 'nomatch' => 0];
 	foreach ($parsed as $line) {
 		$confiance = 'nomatch'; $lot = null;
 
-		if ($line['ct'] > 0 && isset($lots[$line['ct']])) {
-			// Reference de lot trouvee dans la communication
-			$lot  = $lots[$line['ct']];
-			$confiance = (abs($lot->total - $line['montant']) <= 0.01) ? 'sur' : 'probable';
+		// 1) cle texte : CTxx du releve -> MsgId stocke
+		if (!empty($line['ct']) && isset($byct[(int) $line['ct']])) {
+			$lot = $byct[(int) $line['ct']];
+			$confiance = 'exact';
 		} else {
-			// Repli : matcher par montant total de lot
+			// 2) repli : candidats par montant total du lot
 			$cands = [];
 			foreach ($lots as $L) {
 				if (abs($L->total - $line['montant']) <= 0.01) $cands[] = $L;
 			}
-			if (count($cands) === 1)      { $lot = $cands[0]; $confiance = 'probable'; }
-			elseif (count($cands) > 1)    { $lot = $cands[0]; $confiance = 'ambigu';   }
+			if (count($cands) === 1) {
+				$lot = $cands[0];
+				$confiance = bf_date_close($lot->date_op, $line['date_iso']) ? 'sur' : 'probable';
+			} elseif (count($cands) > 1) {
+				// affiner par date : un seul lot a la bonne date -> probable, sinon ambigu
+				$byd = [];
+				foreach ($cands as $L) { if (bf_date_close($L->date_op, $line['date_iso'])) $byd[] = $L; }
+				if (count($byd) === 1) { $lot = $byd[0]; $confiance = 'probable'; }
+				else                   { $lot = $cands[0]; $confiance = 'ambigu'; }
+			}
 		}
 		$cnt[$confiance]++;
 		$matches[] = ['line' => $line, 'lot' => $lot, 'conf' => $confiance];
 	}
 
 	$badge = [
-		'sur'      => '<span style="color:#28a745;font-weight:bold">' . img_picto('', 'fa-check-circle', '') . ' S&ucirc;r (r&eacute;f. lot)</span>',
+		'exact'    => '<span style="color:#1a7f37;font-weight:bold">' . img_picto('', 'fa-check-double', '') . ' S&ucirc;r (r&eacute;f. SEPA)</span>',
+		'sur'      => '<span style="color:#28a745;font-weight:bold">' . img_picto('', 'fa-check-circle', '') . ' S&ucirc;r (montant + date)</span>',
 		'probable' => '<span style="color:#fd7e14;font-weight:bold">' . img_picto('', 'fa-question-circle', '') . ' Probable (montant)</span>',
-		'ambigu'   => '<span style="color:#dc3545;font-weight:bold">' . img_picto('', 'fa-exclamation-triangle', '') . ' Ambigu</span>',
+		'ambigu'   => '<span style="color:#dc3545;font-weight:bold">' . img_picto('', 'fa-exclamation-triangle', '') . ' Ambigu (plusieurs lots)</span>',
 		'nomatch'  => '<span style="color:#999">&mdash; Aucun lot trouv&eacute;</span>',
 	];
 
 	print '<div style="background:#fff;border:1px solid #ddd;border-radius:6px;padding:14px;margin-bottom:16px">';
 	print '<h3 style="margin:0 0 10px">' . img_picto('', 'fa-university', '') . ' V&eacute;rification du relev&eacute; Belfius &mdash; ' . count($matches) . ' ligne(s) de lot SEPA</h3>';
-	print '<p style="margin:0 0 12px;color:#555">' . $cnt['sur'] . ' s&ucirc;r(s) &middot; ' . $cnt['probable'] . ' probable(s) &middot; <span style="color:#dc3545">' . $cnt['ambigu'] . ' ambigu(s)</span> &middot; ' . $cnt['nomatch'] . ' sans lot. '
+	print '<p style="margin:0 0 12px;color:#555">' . ($cnt['exact'] + $cnt['sur']) . ' s&ucirc;r(s)'
+	    . ($cnt['exact'] > 0 ? ' (dont ' . $cnt['exact'] . ' par r&eacute;f. SEPA)' : '')
+	    . ' &middot; ' . $cnt['probable'] . ' probable(s) &middot; <span style="color:#dc3545">' . $cnt['ambigu'] . ' ambigu(s)</span> &middot; ' . $cnt['nomatch'] . ' sans lot. '
 	    . 'Chaque ligne du relev&eacute; est un <b>ordre collectif</b> regroupant plusieurs virements. '
 	    . '<b>Coche les lots &agrave; rapprocher, d&eacute;plie le d&eacute;tail si besoin, puis valide.</b></p>';
 
@@ -612,7 +673,7 @@ if ($action === 'import_belfius') {
 		$can_apply = ($lot !== null && $lot->nb_libre > 0);
 		print '<td style="text-align:center">';
 		if ($can_apply) {
-			$checked = ($confiance === 'sur' || $confiance === 'probable') ? ' checked' : '';
+			$checked = ($confiance === 'exact' || $confiance === 'sur' || $confiance === 'probable') ? ' checked' : '';
 			print '<input type="checkbox" class="bf-apply" name="apply[' . $idx . ']" value="1"' . $checked . '>';
 		}
 		print '</td>';
@@ -629,9 +690,13 @@ if ($action === 'import_belfius') {
 		if ($lot !== null) {
 			print '<input type="hidden" name="sel_bon[' . $idx . ']" value="' . (int) $lot->bon_id . '">';
 			$ecart = abs($lot->total - $ln['montant']);
-			print '<div style="font-weight:600">' . dol_escape_htmltag($lot->ref) . ' <span style="color:#888;font-weight:normal">(CT' . (int) $lot->bon_id . ')</span></div>';
+			print '<div style="font-weight:600">' . dol_escape_htmltag($lot->ref) . ' <span style="color:#888;font-weight:normal">(bon #' . (int) $lot->bon_id . ')</span></div>';
+			if ($confiance === 'exact' && !empty($lot->msgid)) {
+				print '<div style="font-size:0.78em;color:#1a7f37">' . img_picto('', 'fa-link', '') . ' r&eacute;f. SEPA ' . dol_escape_htmltag($lot->msgid) . '</div>';
+			}
 			print '<div style="font-size:0.85em;color:#555">'
 			    . $lot->nb . ' virement(s) &middot; total ' . price($lot->total) . '&nbsp;&euro;'
+			    . ' &middot; lot du ' . dol_escape_htmltag($lot->date_op)
 			    . ($ecart > 0.01 ? ' <span style="color:#dc3545">(&eacute;cart ' . price($ecart) . ' &euro;)</span>' : '')
 			    . '</div>';
 			if ($lot->nb_libre > 0) {
