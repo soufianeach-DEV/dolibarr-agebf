@@ -1,5 +1,14 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 4.2 (2026-06-08)
+
+### Corrections et amelioration
+
+- **fix** : erreur MySQL `Unknown column 'ef.beneficiaire' in 'SELECT'` sur la page Paiements a effectuer — SQL desormais defensif (SHOW COLUMNS avant le JOIN sur `llx_facture_fourn_extrafields`)
+- **fix** : liens ecritures bancaires Belfius corrigees (`account=1` -> `account=2`) dans agebf_packs (x2) et agebf_compta (x1)
+- **feat** : tri cliquable sur les colonnes Pack, Tiers, N° facture, Date facture et Montant dans la page Paiements a effectuer (demande Philip)
+- ZIP : `module_agebf-4.2.zip`
+
 ## 4.1 (2026-06-04)
 
 ### Nouvelle fonctionnalite : preparation du lot de virements SEPA en 1 clic + parcours guide
