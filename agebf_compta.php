@@ -23,6 +23,22 @@ $open_fac    = (int) GETPOST('open_fac',     'int');
 if ($annee < 2020 || $annee > 2100) $annee = (int) date('Y');
 if (!in_array($s_rapproche, ['tous', 'oui', 'non'])) $s_rapproche = 'tous';
 
+$sortfield    = GETPOST('sortfield', 'aZ09');
+$sortorder    = GETPOST('sortorder', 'aZ09');
+$allowed_sort = ['s.nom', 'f.ref', 'f.total_ttc'];
+if (!in_array($sortfield, $allowed_sort))               $sortfield = 's.nom';
+if (!in_array(strtoupper($sortorder), ['ASC', 'DESC'])) $sortorder = 'ASC';
+
+function compta_sort_link(string $label, string $field, string $sf, string $so, string $base, int $annee, string $rapproche, string $sepa): string {
+    $new_order = ($sf === $field && $so === 'ASC') ? 'DESC' : 'ASC';
+    $arrow = ($sf === $field) ? ($so === 'ASC' ? ' ▲' : ' ▼') : '';
+    $url = $base . '?annee=' . $annee
+         . '&s_rapproche=' . urlencode($rapproche)
+         . ($sepa !== '' ? '&s_sepa=' . urlencode($sepa) : '')
+         . '&sortfield=' . urlencode($field) . '&sortorder=' . $new_order;
+    return '<a href="' . $url . '" style="color:inherit;text-decoration:none">' . $label . $arrow . '</a>';
+}
+
 $url_base = DOL_URL_ROOT . '/custom/agebf/agebf_compta.php';
 $msg_ok  = '';
 $msg_err = '';
@@ -284,7 +300,7 @@ JOIN " . MAIN_DB_PREFIX . "paiementfourn_facturefourn pff
        ON pff.fk_facturefourn = f.rowid
 WHERE f.entity = " . (int)$conf->entity . "
   AND YEAR(f.datef) = " . (int)$annee . "
-ORDER BY s.nom ASC, f.ref ASC";
+ORDER BY " . $sortfield . " " . $sortorder . ($sortfield !== 'f.ref' ? ", f.ref ASC" : "") . "";
 
 $resql = $db->query($sql);
 if (!$resql) {
@@ -750,9 +766,9 @@ if ($action === 'import_belfius') {
 print '<table class="noborder centpercent">';
 print '<tr class="liste_titre">';
 print '<th style="width:28px"></th>'; // bouton toggle
-print '<th>Tiers</th>';
-print '<th>Facture / Pack</th>';
-print '<th class="right">Montant attendu</th>';
+print '<th>'     . compta_sort_link('Tiers',           's.nom',       $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
+print '<th>'     . compta_sort_link('Facture / Pack',  'f.ref',       $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
+print '<th class="right">' . compta_sort_link('Montant attendu', 'f.total_ttc', $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
 print '<th class="right">D&eacute;j&agrave; pay&eacute;</th>';
 print '<th class="right">Restant</th>';
 print '<th class="center">Virements</th>';

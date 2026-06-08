@@ -1,5 +1,10 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 4.3 (2026-06-08)
+
+- **feat** : tri cliquable colonnes Tiers / Facture / Montant attendu sur la page Rapprochement bancaire
+- ZIP : `module_agebf-4.3.zip`
+
 ## 4.2 (2026-06-08)
 
 ### Corrections et amelioration
