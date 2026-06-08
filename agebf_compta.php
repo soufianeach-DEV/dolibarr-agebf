@@ -850,7 +850,7 @@ foreach ($rows as $f) {
 			// Relevé bancaire : n° de relevé Belfius, uniquement si pointé ET saisi (≠ réf SEPA pré-remplie)
 			$has_releve  = ($p->rapproche && $p->num_releve !== '' && $p->num_releve !== $p->ref_sepa);
 			$releve_cell = $has_releve
-				? '<a href="' . DOL_URL_ROOT . '/compta/bank/bankentries_list.php?account=1&search_num_releve='
+				? '<a href="' . DOL_URL_ROOT . '/compta/bank/bankentries_list.php?account=2&search_num_releve='
 				  . urlencode($p->num_releve) . '" target="_blank" style="color:#0d6efd">'
 				  . dol_escape_htmltag($p->num_releve) . '</a>'
 				: '<span style="color:#aaa">—</span>';

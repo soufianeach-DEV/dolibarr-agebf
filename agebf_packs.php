@@ -64,6 +64,34 @@ if ($action === 'prepare_sepa_batch' && $user->hasRight('fournisseur', 'facture'
 	exit;
 }
 
+// ── Tri cliquable ─────────────────────────────────────────────────────────────
+$sortfield    = GETPOST('sortfield', 'aZ09');
+$sortorder    = GETPOST('sortorder', 'aZ09');
+$allowed_sort = ['f.datef', 's.nom', 'f.ref', 'f.total_ttc', 'p.label'];
+if (!in_array($sortfield, $allowed_sort))               $sortfield = 's.nom';
+if (!in_array(strtoupper($sortorder), ['ASC', 'DESC'])) $sortorder = 'ASC';
+
+function packs_sort_link(string $label, string $field, string $sf, string $so, string $base, int $annee, string $statut): string {
+	$new_order = ($sf === $field && $so === 'ASC') ? 'DESC' : 'ASC';
+	$arrow = ($sf === $field) ? ($so === 'ASC' ? ' ▲' : ' ▼') : '';
+	$url = $base . '?annee=' . $annee . '&statut=' . urlencode($statut)
+	     . '&sortfield=' . urlencode($field) . '&sortorder=' . $new_order;
+	return '<a href="' . $url . '" style="color:inherit;text-decoration:none">' . $label . $arrow . '</a>';
+}
+
+// ── Vérification colonnes extrafields facture_fourn (défensif) ────────────────
+$chk_ben = $db->query("SHOW COLUMNS FROM " . MAIN_DB_PREFIX . "facture_fourn_extrafields LIKE 'beneficiaire'");
+$has_ben = ($chk_ben && $db->num_rows($chk_ben) > 0);
+$chk_ogm = $db->query("SHOW COLUMNS FROM " . MAIN_DB_PREFIX . "facture_fourn_extrafields LIKE 'communication_structuree'");
+$has_ogm = ($chk_ogm && $db->num_rows($chk_ogm) > 0);
+$join_ef  = ($has_ben || $has_ogm)
+	? "LEFT JOIN " . MAIN_DB_PREFIX . "facture_fourn_extrafields ef ON ef.fk_object = f.rowid"
+	: "";
+$sel_ben  = $has_ben ? "COALESCE(ef.beneficiaire, '')"             : "''";
+$sel_ogm  = $has_ogm ? "COALESCE(ef.communication_structuree, '')" : "''";
+$grp_xtra = ($has_ben ? ", ef.beneficiaire" : "") . ($has_ogm ? ", ef.communication_structuree" : "");
+$sec_sort = ($sortfield !== 'f.datef') ? ", f.datef DESC" : "";
+
 // ── Requête principale ────────────────────────────────────────────────────────
 $sql = "SELECT
     f.rowid          AS fac_id,
@@ -75,8 +103,8 @@ $sql = "SELECT
     s.nom            AS tiers_nom,
     p.label          AS pack_label,
     p.ref            AS pack_ref,
-    COALESCE(ef.beneficiaire, '')             AS beneficiaire,
-    COALESCE(ef.communication_structuree, '') AS communication_structuree,
+    " . $sel_ben . " AS beneficiaire,
+    " . $sel_ogm . " AS communication_structuree,
     COALESCE(SUM(pf.amount), 0)              AS montant_paye,
     MAX(pay.datep)                            AS derniere_date_paiement,
     MAX(pay.num_paiement)                     AS derniere_ref_sepa
@@ -84,7 +112,7 @@ FROM " . MAIN_DB_PREFIX . "facture_fourn f
 JOIN " . MAIN_DB_PREFIX . "societe s           ON s.rowid = f.fk_soc
 JOIN " . MAIN_DB_PREFIX . "facture_fourn_det fd ON fd.fk_facture_fourn = f.rowid
 JOIN " . MAIN_DB_PREFIX . "product p            ON p.rowid = fd.fk_product
-LEFT JOIN " . MAIN_DB_PREFIX . "facture_fourn_extrafields ef        ON ef.fk_object = f.rowid
+" . $join_ef . "
 LEFT JOIN " . MAIN_DB_PREFIX . "paiementfourn_facturefourn pf       ON pf.fk_facturefourn = f.rowid
 LEFT JOIN " . MAIN_DB_PREFIX . "paiementfourn pay                   ON pay.rowid = pf.fk_paiementfourn
 WHERE f.entity = " . (int)$conf->entity . "
@@ -92,15 +120,21 @@ WHERE f.entity = " . (int)$conf->entity . "
   AND YEAR(f.datef) = " . (int)$annee;
 
 if ($s_pack  !== '')  $sql .= " AND p.ref = '" . $db->escape($s_pack) . "'";
-if ($s_tiers !== '')  $sql .= " AND (s.nom LIKE '%" . $db->escape($s_tiers) . "%' OR ef.beneficiaire LIKE '%" . $db->escape($s_tiers) . "%')";
-if ($s_fac   !== '')  $sql .= " AND f.ref LIKE '%" . $db->escape($s_fac) . "%'";
-if ($s_ogm   !== '')  $sql .= " AND ef.communication_structuree LIKE '%" . $db->escape($s_ogm) . "%'";
-if ($s_mmin  > 0)     $sql .= " AND f.total_ttc >= " . (float)$s_mmin;
-if ($s_mmax  > 0)     $sql .= " AND f.total_ttc <= " . (float)$s_mmax;
+if ($s_tiers !== '') {
+	if ($has_ben) {
+		$sql .= " AND (s.nom LIKE '%" . $db->escape($s_tiers) . "%' OR ef.beneficiaire LIKE '%" . $db->escape($s_tiers) . "%')";
+	} else {
+		$sql .= " AND s.nom LIKE '%" . $db->escape($s_tiers) . "%'";
+	}
+}
+if ($s_fac !== '')             $sql .= " AND f.ref LIKE '%" . $db->escape($s_fac) . "%'";
+if ($s_ogm !== '' && $has_ogm) $sql .= " AND ef.communication_structuree LIKE '%" . $db->escape($s_ogm) . "%'";
+if ($s_mmin > 0)               $sql .= " AND f.total_ttc >= " . (float)$s_mmin;
+if ($s_mmax > 0)               $sql .= " AND f.total_ttc <= " . (float)$s_mmax;
 
 $sql .= " GROUP BY f.rowid, f.ref, f.datef, f.total_ttc, f.paye,
-                   s.rowid, s.nom, p.label, p.ref, ef.beneficiaire, ef.communication_structuree";
-$sql .= " ORDER BY f.datef DESC, s.nom ASC";
+                   s.rowid, s.nom, p.label, p.ref" . $grp_xtra;
+$sql .= " ORDER BY " . $sortfield . " " . $sortorder . $sec_sort;
 
 $resql = $db->query($sql);
 if (!$resql) {
@@ -318,6 +352,8 @@ if ($user->hasRight('fournisseur', 'facture', 'creer')) {
 // ── Formulaire principal (filtres globaux + colonne) ──────────────────────────
 print '<div class="fichecenter">';
 print '<form method="GET" action="' . $url_base . '" id="bf-filter-form">';
+print '<input type="hidden" name="sortfield" value="' . dol_escape_htmltag($sortfield) . '">';
+print '<input type="hidden" name="sortorder" value="' . dol_escape_htmltag($sortorder) . '">';
 
 // Ligne filtres globaux
 print '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">';
@@ -355,15 +391,15 @@ $input_style = 'width:100%;padding:2px 5px;font-size:0.82em;border:1px solid #cc
 
 print '<table class="noborder centpercent">';
 
-// En-têtes
+// En-têtes (tri cliquable sur Pack, Tiers, N° facture, Date, Montant)
 print '<tr class="liste_titre">';
-print '<th style="min-width:140px">Pack</th>';
-print '<th style="min-width:150px">Tiers / B&eacute;n&eacute;ficiaire</th>';
-print '<th style="min-width:110px">N&deg; facture</th>';
+print '<th style="min-width:140px">' . packs_sort_link('Pack',                            'p.label',     $sortfield, $sortorder, $url_base, $annee, $statut) . '</th>';
+print '<th style="min-width:150px">' . packs_sort_link('Tiers / B&eacute;n&eacute;ficiaire', 's.nom',   $sortfield, $sortorder, $url_base, $annee, $statut) . '</th>';
+print '<th style="min-width:110px">' . packs_sort_link('N&deg; facture',                  'f.ref',       $sortfield, $sortorder, $url_base, $annee, $statut) . '</th>';
 print '<th style="min-width:140px">Communication structur&eacute;e</th>';
-print '<th class="center" style="min-width:90px">Date facture</th>';
-print '<th class="right" style="min-width:80px">Montant</th>';
-print '<th class="right" style="min-width:80px">Pay&eacute;</th>';
+print '<th class="center" style="min-width:90px">' . packs_sort_link('Date facture', 'f.datef',     $sortfield, $sortorder, $url_base, $annee, $statut) . '</th>';
+print '<th class="right"  style="min-width:80px">' . packs_sort_link('Montant',      'f.total_ttc', $sortfield, $sortorder, $url_base, $annee, $statut) . '</th>';
+print '<th class="right"  style="min-width:80px">Pay&eacute;</th>';
 print '<th class="center" style="min-width:90px">Statut</th>';
 print '<th class="center" style="min-width:120px">Dernier paiement</th>';
 print '<th class="center" style="min-width:120px">Virement</th>';
@@ -481,7 +517,7 @@ foreach ($rows_filtered as $r) {
         $date_pay = dol_print_date($db->jdate($r->derniere_date_paiement), 'day');
         $lien_pay = $date_pay;
         if ($r->derniere_ref_sepa) {
-            $lien_pay .= '<br><a href="' . DOL_URL_ROOT . '/compta/bank/bankentries_list.php?account=1&search_ref='
+            $lien_pay .= '<br><a href="' . DOL_URL_ROOT . '/compta/bank/bankentries_list.php?account=2&search_ref='
                        . urlencode($r->derniere_ref_sepa) . '" style="font-size:0.8em;color:#6c757d" title="Voir mouvement bancaire">'
                        . dol_escape_htmltag($r->derniere_ref_sepa) . '</a>';
         }
@@ -491,7 +527,7 @@ foreach ($rows_filtered as $r) {
 
     // Bouton Préparer virement bancaire + lien vérification écriture
     $vir_url    = DOL_URL_ROOT . '/fourn/facture/card.php?id=' . (int)$r->fac_id . '#paiement';
-    $ecr_url    = DOL_URL_ROOT . '/compta/bank/bankentries_list.php?account=1&search_description='
+    $ecr_url    = DOL_URL_ROOT . '/compta/bank/bankentries_list.php?account=2&search_description='
                 . urlencode($r->fac_ref);
     $ecr_link   = '<br><a href="' . $ecr_url . '" target="_blank"'
                 . ' style="font-size:0.78em;color:#6c757d;text-decoration:none;white-space:nowrap"'
