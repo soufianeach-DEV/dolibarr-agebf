@@ -67,7 +67,7 @@ if ($action === 'prepare_sepa_batch' && $user->hasRight('fournisseur', 'facture'
 // ── Tri cliquable ─────────────────────────────────────────────────────────────
 $sortfield    = GETPOST('sortfield', 'aZ09');
 $sortorder    = GETPOST('sortorder', 'aZ09');
-$allowed_sort = ['f.datef', 's.nom', 'f.ref', 'f.total_ttc', 'p.label'];
+$allowed_sort = ['f.datef', 's.nom', 'f.ref', 'f.total_ttc', 'p.label', 'montant_paye', 'f.paye', 'derniere_date_paiement'];
 if (!in_array($sortfield, $allowed_sort))               $sortfield = 's.nom';
 if (!in_array(strtoupper($sortorder), ['ASC', 'DESC'])) $sortorder = 'ASC';
 
@@ -399,9 +399,9 @@ print '<th style="min-width:110px">' . packs_sort_link('N&deg; facture',        
 print '<th style="min-width:140px">Communication structur&eacute;e</th>';
 print '<th class="center" style="min-width:90px">' . packs_sort_link('Date facture', 'f.datef',     $sortfield, $sortorder, $url_base, $annee, $statut) . '</th>';
 print '<th class="right"  style="min-width:80px">' . packs_sort_link('Montant',      'f.total_ttc', $sortfield, $sortorder, $url_base, $annee, $statut) . '</th>';
-print '<th class="right"  style="min-width:80px">Pay&eacute;</th>';
-print '<th class="center" style="min-width:90px">Statut</th>';
-print '<th class="center" style="min-width:120px">Dernier paiement</th>';
+print '<th class="right"  style="min-width:80px">'  . packs_sort_link('Pay&eacute;',            'montant_paye',             $sortfield, $sortorder, $url_base, $annee, $statut) . '</th>';
+print '<th class="center" style="min-width:90px">'  . packs_sort_link('Statut',              'f.paye',                   $sortfield, $sortorder, $url_base, $annee, $statut) . '</th>';
+print '<th class="center" style="min-width:120px">' . packs_sort_link('Dernier paiement',    'derniere_date_paiement',   $sortfield, $sortorder, $url_base, $annee, $statut) . '</th>';
 print '<th class="center" style="min-width:120px">Virement</th>';
 print '</tr>';
 

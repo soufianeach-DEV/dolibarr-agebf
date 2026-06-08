@@ -25,7 +25,7 @@ if (!in_array($s_rapproche, ['tous', 'oui', 'non'])) $s_rapproche = 'tous';
 
 $sortfield    = GETPOST('sortfield', 'aZ09');
 $sortorder    = GETPOST('sortorder', 'aZ09');
-$allowed_sort = ['s.nom', 'f.ref', 'f.total_ttc'];
+$allowed_sort = ['s.nom', 'f.ref', 'f.total_ttc', 'deja_paye', 'restant', 'nb_versements', 'nb_rapproche'];
 if (!in_array($sortfield, $allowed_sort))               $sortfield = 's.nom';
 if (!in_array(strtoupper($sortorder), ['ASC', 'DESC'])) $sortorder = 'ASC';
 
@@ -300,7 +300,7 @@ JOIN " . MAIN_DB_PREFIX . "paiementfourn_facturefourn pff
        ON pff.fk_facturefourn = f.rowid
 WHERE f.entity = " . (int)$conf->entity . "
   AND YEAR(f.datef) = " . (int)$annee . "
-ORDER BY " . $sortfield . " " . $sortorder . ($sortfield !== 'f.ref' ? ", f.ref ASC" : "") . "";
+ORDER BY " . (in_array($sortfield, ['s.nom','f.ref','f.total_ttc']) ? $sortfield . ' ' . $sortorder . ($sortfield !== 'f.ref' ? ', f.ref ASC' : '') : 's.nom ASC, f.ref ASC') . "";
 
 $resql = $db->query($sql);
 if (!$resql) {
@@ -399,6 +399,16 @@ foreach ($factures as $f) {
 	if ($s_rapproche === 'oui' && ($f->nb_non_rapp > 0 || $f->nb_versements === 0)) continue; // que les factures entièrement rapprochées
 
 	$rows[] = $f;
+}
+
+// ── Tri PHP pour champs calculés (déjà payé, restant, virements, rapprochement)
+$php_sort_map = ['deja_paye' => 'deja_paye', 'restant' => 'restant', 'nb_versements' => 'nb_versements', 'nb_rapproche' => 'nb_rapproche'];
+if (isset($php_sort_map[$sortfield])) {
+    $prop = $php_sort_map[$sortfield]; $so = $sortorder;
+    usort($rows, function($a, $b) use ($prop, $so) {
+        $cmp = $a->$prop <=> $b->$prop;
+        return $so === 'DESC' ? -$cmp : $cmp;
+    });
 }
 
 // ── Stats ─────────────────────────────────────────────────────────────────────
@@ -769,10 +779,10 @@ print '<th style="width:28px"></th>'; // bouton toggle
 print '<th>'     . compta_sort_link('Tiers',           's.nom',       $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
 print '<th>'     . compta_sort_link('Facture / Pack',  'f.ref',       $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
 print '<th class="right">' . compta_sort_link('Montant attendu', 'f.total_ttc', $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
-print '<th class="right">D&eacute;j&agrave; pay&eacute;</th>';
-print '<th class="right">Restant</th>';
-print '<th class="center">Virements</th>';
-print '<th class="center">Rapprochement</th>';
+print '<th class="right">'  . compta_sort_link('D&eacute;j&agrave; pay&eacute;', 'deja_paye',     $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
+print '<th class="right">'  . compta_sort_link('Restant',                        'restant',       $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
+print '<th class="center">' . compta_sort_link('Virements',                      'nb_versements', $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
+print '<th class="center">' . compta_sort_link('Rapprochement',                  'nb_rapproche',  $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
 print '</tr>';
 
 if (empty($rows)) {

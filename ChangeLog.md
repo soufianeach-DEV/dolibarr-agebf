@@ -2,7 +2,7 @@
 
 ## 4.3 (2026-06-08)
 
-- **feat** : tri cliquable colonnes Tiers / Facture / Montant attendu sur la page Rapprochement bancaire
+- **feat** : tri cliquable sur TOUTES les colonnes des deux pages — Paiements à effectuer (Pack, Tiers, N°facture, Date, Montant, Payé, Statut, Dernier paiement) + Rapprochement bancaire (Tiers, Facture, Montant attendu, Déjà payé, Restant, Virements, Rapprochement)
 - ZIP : `module_agebf-4.3.zip`
 
 ## 4.2 (2026-06-08)
