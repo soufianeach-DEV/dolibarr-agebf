@@ -73,10 +73,10 @@ if (!in_array(strtoupper($sortorder), ['ASC', 'DESC'])) $sortorder = 'ASC';
 
 function packs_sort_link(string $label, string $field, string $sf, string $so, string $base, int $annee, string $statut): string {
 	$new_order = ($sf === $field && $so === 'ASC') ? 'DESC' : 'ASC';
-	$arrow = ($sf === $field) ? ($so === 'ASC' ? ' ▲' : ' ▼') : '';
+	$arrow = ($sf === $field) ? ($so === 'ASC' ? ' <span style="color:#e67e22">▲</span>' : ' <span style="color:#e67e22">▼</span>') : ' <span style="color:#999;font-size:0.75em">▲▼</span>';
 	$url = $base . '?annee=' . $annee . '&statut=' . urlencode($statut)
 	     . '&sortfield=' . urlencode($field) . '&sortorder=' . $new_order;
-	return '<a href="' . $url . '" style="color:inherit;text-decoration:none">' . $label . $arrow . '</a>';
+	return '<a href="' . $url . '" style="color:inherit;text-decoration:none;cursor:pointer">' . $label . $arrow . '</a>';
 }
 
 // ── Vérification colonnes extrafields facture_fourn (défensif) ────────────────
