@@ -1,5 +1,13 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 5.1 (2026-06-15)
+
+### Nouvelles fonctionnalités
+
+- **feat** : page **Assurances** — liste tous les Tiers avec leurs contacts, cases à cocher Assurance Hospi. / Assurance Dentaire par contact, sync automatique depuis le champ Assurcard (bouton « Sync Assurcard »), statistiques, mise en évidence des contacts Assurcard sans hospi cochée
+- **feat** : page **Rapprochement bancaire** étendue aux **factures clients** — nouveau filtre Toutes / Clients / Fournisseurs, badges de type (Client/Fourn.) en vue « Toutes », liens facture/paiement adaptés au type, import Belfius masqué en vue « Clients »
+- ZIP : `module_agebf-5.1.zip`
+
 ## 4.3 (2026-06-08)
 
 - **feat** : tri cliquable sur TOUTES les colonnes des deux pages — Paiements à effectuer (Pack, Tiers, N°facture, Date, Montant, Payé, Statut, Dernier paiement) + Rapprochement bancaire (Tiers, Facture, Montant attendu, Déjà payé, Restant, Virements, Rapprochement)

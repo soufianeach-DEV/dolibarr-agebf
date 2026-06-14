@@ -13,15 +13,17 @@ if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.in
 if (!$res) { die("Include of main fails"); }
 
 // ── Paramètres ────────────────────────────────────────────────────────────────
-$annee       = (int) GETPOST('annee',       'int');
-$s_rapproche = GETPOST('s_rapproche',       'aZ09');
-$s_sepa      = trim(GETPOST('s_sepa',       'alphanohtml'));
-$export      = GETPOST('export',            'aZ09');
-$action      = GETPOST('action',            'aZ09');
-$open_fac    = (int) GETPOST('open_fac',     'int');
+$annee        = (int) GETPOST('annee',        'int');
+$s_rapproche  = GETPOST('s_rapproche',        'aZ09');
+$s_sepa       = trim(GETPOST('s_sepa',        'alphanohtml'));
+$export       = GETPOST('export',             'aZ09');
+$action       = GETPOST('action',             'aZ09');
+$open_fac     = (int) GETPOST('open_fac',     'int');
+$type_facture = GETPOST('type_facture',       'aZ09');
 
 if ($annee < 2020 || $annee > 2100) $annee = (int) date('Y');
 if (!in_array($s_rapproche, ['tous', 'oui', 'non'])) $s_rapproche = 'tous';
+if (!in_array($type_facture, ['tous', 'client', 'fournisseur'])) $type_facture = 'fournisseur';
 
 $sortfield    = GETPOST('sortfield', 'aZ09');
 $sortorder    = GETPOST('sortorder', 'aZ09');
@@ -29,12 +31,13 @@ $allowed_sort = ['s.nom', 'f.ref', 'f.total_ttc', 'deja_paye', 'restant', 'nb_ve
 if (!in_array($sortfield, $allowed_sort))               $sortfield = 's.nom';
 if (!in_array(strtoupper($sortorder), ['ASC', 'DESC'])) $sortorder = 'ASC';
 
-function compta_sort_link(string $label, string $field, string $sf, string $so, string $base, int $annee, string $rapproche, string $sepa): string {
+function compta_sort_link(string $label, string $field, string $sf, string $so, string $base, int $annee, string $rapproche, string $sepa, string $type_fac = 'fournisseur'): string {
     $new_order = ($sf === $field && $so === 'ASC') ? 'DESC' : 'ASC';
-    $arrow = ($sf === $field) ? ($so === 'ASC' ? ' <span style="color:#e67e22">▲</span>' : ' <span style="color:#e67e22">▼</span>') : ' <span style="color:#999;font-size:0.75em">▲▼</span>';
+    $arrow = ($sf === $field) ? ($so === 'ASC' ? ' <span style="color:#e67e22">&#9650;</span>' : ' <span style="color:#e67e22">&#9660;</span>') : ' <span style="color:#999;font-size:0.75em">&#9650;&#9660;</span>';
     $url = $base . '?annee=' . $annee
          . '&s_rapproche=' . urlencode($rapproche)
          . ($sepa !== '' ? '&s_sepa=' . urlencode($sepa) : '')
+         . '&type_facture=' . urlencode($type_fac)
          . '&sortfield=' . urlencode($field) . '&sortorder=' . $new_order;
     return '<a href="' . $url . '" style="color:inherit;text-decoration:none;cursor:pointer">' . $label . $arrow . '</a>';
 }
@@ -44,7 +47,7 @@ $msg_ok  = '';
 $msg_err = '';
 
 if (GETPOST('rapproche_ok', 'int') == 1) {
-	$msg_ok = 'Paiement rapproche avec succes — releve : <b>' . dol_escape_htmltag(GETPOST('releve_ok', 'nohtml')) . '</b>';
+	$msg_ok = 'Paiement rapproche avec succes &mdash; releve : <b>' . dol_escape_htmltag(GETPOST('releve_ok', 'nohtml')) . '</b>';
 }
 if (GETPOST('derapproche_ok', 'int') == 1) {
 	$msg_ok = 'Rapprochement annule.';
@@ -59,14 +62,20 @@ if (GETPOSTISSET('belfius_ok')) {
 
 // ── Action : rapprocher un paiement ──────────────────────────────────────────
 if ($action === 'rapprocher' && !empty($_POST['token'])) {
-	$pay_id    = (int) GETPOST('pay_id',    'int');
-	$num_rel   = trim(GETPOST('num_releve', 'alphanohtml'));
+	$pay_id   = (int) GETPOST('pay_id',    'int');
+	$num_rel  = trim(GETPOST('num_releve', 'alphanohtml'));
+	$pay_type = GETPOST('pay_type',        'aZ09'); // 'client' ou 'fournisseur'
 
 	if ($pay_id > 0) {
-		// Trouver l'écriture bancaire liée à ce paiement fournisseur
-		$sql_bk = "SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank b"
-		        . " INNER JOIN " . MAIN_DB_PREFIX . "paiementfourn pay ON pay.fk_bank = b.rowid"
-		        . " WHERE pay.rowid = " . $pay_id . " LIMIT 1";
+		if ($pay_type === 'client') {
+			$sql_bk = "SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank b"
+			        . " INNER JOIN " . MAIN_DB_PREFIX . "paiement pay ON pay.fk_bank = b.rowid"
+			        . " WHERE pay.rowid = " . $pay_id . " LIMIT 1";
+		} else {
+			$sql_bk = "SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank b"
+			        . " INNER JOIN " . MAIN_DB_PREFIX . "paiementfourn pay ON pay.fk_bank = b.rowid"
+			        . " WHERE pay.rowid = " . $pay_id . " LIMIT 1";
+		}
 		$rbk = $db->query($sql_bk);
 		if ($rbk && ($obk = $db->fetch_object($rbk))) {
 			$bank_id = (int) $obk->rowid;
@@ -76,7 +85,8 @@ if ($action === 'rapprocher' && !empty($_POST['token'])) {
 			         . " WHERE rowid = " . $bank_id;
 			if ($db->query($sql_up)) {
 				header('Location: ' . $url_base . '?annee=' . $annee . '&s_rapproche=' . urlencode($s_rapproche)
-				     . '&s_sepa=' . urlencode($s_sepa) . '&open_fac=' . (int) GETPOST('fac_id', 'int')
+				     . '&s_sepa=' . urlencode($s_sepa) . '&type_facture=' . urlencode($type_facture)
+				     . '&open_fac=' . (int) GETPOST('fac_id', 'int')
 				     . '&rapproche_ok=1&releve_ok=' . urlencode($num_rel));
 				exit;
 			} else {
@@ -90,18 +100,26 @@ if ($action === 'rapprocher' && !empty($_POST['token'])) {
 
 // ── Action : annuler un rapprochement (admin uniquement) ─────────────────────
 if ($action === 'derapprocher' && $user->admin && !empty($_POST['token'])) {
-	$pay_id = (int) GETPOST('pay_id', 'int');
+	$pay_id   = (int) GETPOST('pay_id', 'int');
+	$pay_type = GETPOST('pay_type',     'aZ09');
 
 	if ($pay_id > 0) {
-		$sql_bk = "SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank b"
-		        . " INNER JOIN " . MAIN_DB_PREFIX . "paiementfourn pay ON pay.fk_bank = b.rowid"
-		        . " WHERE pay.rowid = " . $pay_id . " LIMIT 1";
+		if ($pay_type === 'client') {
+			$sql_bk = "SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank b"
+			        . " INNER JOIN " . MAIN_DB_PREFIX . "paiement pay ON pay.fk_bank = b.rowid"
+			        . " WHERE pay.rowid = " . $pay_id . " LIMIT 1";
+		} else {
+			$sql_bk = "SELECT b.rowid FROM " . MAIN_DB_PREFIX . "bank b"
+			        . " INNER JOIN " . MAIN_DB_PREFIX . "paiementfourn pay ON pay.fk_bank = b.rowid"
+			        . " WHERE pay.rowid = " . $pay_id . " LIMIT 1";
+		}
 		$rbk = $db->query($sql_bk);
 		if ($rbk && ($obk = $db->fetch_object($rbk))) {
 			$sql_up = "UPDATE " . MAIN_DB_PREFIX . "bank SET rappro = 0 WHERE rowid = " . (int)$obk->rowid;
 			if ($db->query($sql_up)) {
 				header('Location: ' . $url_base . '?annee=' . $annee . '&s_rapproche=' . urlencode($s_rapproche)
-				     . '&s_sepa=' . urlencode($s_sepa) . '&open_fac=' . (int) GETPOST('fac_id', 'int')
+				     . '&s_sepa=' . urlencode($s_sepa) . '&type_facture=' . urlencode($type_facture)
+				     . '&open_fac=' . (int) GETPOST('fac_id', 'int')
 				     . '&derapproche_ok=1');
 				exit;
 			} else {
@@ -117,8 +135,8 @@ if ($action === 'apply_belfius' && !empty($_POST['token'])) {
 	$sel_rel = isset($_POST['sel_releve']) && is_array($_POST['sel_releve']) ? $_POST['sel_releve'] : [];
 	$apply   = isset($_POST['apply'])      && is_array($_POST['apply'])      ? $_POST['apply']      : [];
 	$lots    = bf_load_lots($db);
-	$nb_ok   = 0;   // virements rapprochés
-	$nb_lots = 0;   // lots traités
+	$nb_ok   = 0;
+	$nb_lots = 0;
 	foreach ($apply as $idx => $on) {
 		$bon = isset($sel_bon[$idx]) ? (int) $sel_bon[$idx] : 0;
 		$rel = isset($sel_rel[$idx]) ? trim((string) $sel_rel[$idx]) : '';
@@ -133,7 +151,7 @@ if ($action === 'apply_belfius' && !empty($_POST['token'])) {
 		    . " WHERE rowid IN (" . implode(',', $bank_ids) . ")";
 		if ($db->query($up)) { $nb_ok += count($bank_ids); $nb_lots++; }
 	}
-	header('Location: ' . $url_base . '?annee=' . $annee . '&belfius_ok=' . $nb_ok . '&belfius_lots=' . $nb_lots);
+	header('Location: ' . $url_base . '?annee=' . $annee . '&type_facture=fournisseur&belfius_ok=' . $nb_ok . '&belfius_lots=' . $nb_lots);
 	exit;
 }
 
@@ -158,8 +176,6 @@ function bf_parse_belfius($path) {
 		if ($hdr === null) {
 			$norm   = array_map('bf_norm', $cells);
 			$joined = implode('|', $norm);
-			// Vraie ligne d'en-tete : plusieurs colonnes ET montant ET communication/date.
-			// (le preambule de filtres Belfius contient "Montant a partir de" sur une seule colonne -> a ignorer)
 			$has_montant = (strpos($joined, 'montant') !== false || strpos($joined, 'bedrag') !== false);
 			$has_comm    = (strpos($joined, 'communication') !== false || strpos($joined, 'mededeling') !== false
 			             || strpos($joined, 'comptabilisation') !== false || strpos($joined, 'boekingsdatum') !== false);
@@ -182,9 +198,6 @@ function bf_parse_belfius($path) {
 		$mf  = (float) str_replace(',', '.', str_replace('.', '', $mraw));
 		$dd  = $gc('date'); $diso = '';
 		if (preg_match('#(\d{2})/(\d{2})/(\d{4})#', $dd, $m)) $diso = $m[3] . '-' . $m[2] . '-' . $m[1];
-		// "FICHIER : DOL/AAAAMMJJ/CTxx" : le CTxx est genere par Belfius et n'a PAS d'equivalent
-		// dans Dolibarr (confirme par Philip 2026-06-03) -> conserve pour info mais NON utilise
-		// comme cle (le matching se fait par montant + date). Voir le moteur de matching.
 		$ct = 0;
 		if (preg_match('#DOL/\d{6,8}/CT0*(\d+)#i', $gc('comm'), $mc)) $ct = (int) $mc[1];
 		$out[] = [
@@ -201,7 +214,6 @@ function bf_parse_belfius($path) {
 	return $out;
 }
 
-// ── Helper : deux dates (YYYY-MM-DD) proches a +/- $tol jours ? ──────────────
 function bf_date_close($a, $b, $tol = 5) {
 	if (empty($a) || empty($b)) return false;
 	$ta = strtotime($a); $tb = strtotime($b);
@@ -209,20 +221,9 @@ function bf_date_close($a, $b, $tol = 5) {
 	return abs($ta - $tb) <= $tol * 86400;
 }
 
-// ── Helper : charger les lots SEPA (bons de virement) + leurs virements ───────
-// Retourne [ bon_id => objet { ref, total, date_op, virements:[...], nb, nb_rappro, nb_libre } ].
-// Lien (CONFIRME PROD par Philip 2026-06-03) : tous les virements d'un ordre collectif
-// portent paiementfourn.num_paiement = prelevement_bons.ref (ex T260102). On joint donc
-// directement le bon a ses paiements par cette ref, puis fk_bank -> bank pour l'etat de
-// rapprochement, et facture/societe (via paiementfourn_facturefourn) pour l'affichage.
-// On NE passe PLUS par prelevement_lignes.number (= IBAN en prod, non fiable pour ce lien).
 function bf_load_lots($db) {
 	$P = MAIN_DB_PREFIX;
 	$entity = (int) $GLOBALS['conf']->entity;
-	// Table du module (cle texte infaillible) : le MsgId du fichier SEPA (ex DOL/20260113/CT29)
-	// et son numero CTxx. Stockee a la generation du lot (ou backfill depuis les XML en prod).
-	// Permet de retrouver le bon a partir du CTxx present dans la communication du releve Belfius,
-	// sans dependre d'une hypothese rowid. Cree a la volee si absente (idempotent, pas de patch coeur).
 	$db->query("CREATE TABLE IF NOT EXISTS {$P}agebf_lot_sepa ("
 	    . " fk_bon integer NOT NULL,"
 	    . " msgid varchar(64) DEFAULT NULL,"
@@ -259,8 +260,6 @@ function bf_load_lots($db) {
 				];
 			}
 			$pid = (int) $o->pay_id;
-			// un paiement peut couvrir plusieurs factures (plusieurs lignes pff) :
-			// 1 seul virement par paiement, on complete juste la ref facture.
 			if (isset($lots[$id]->_seen[$pid])) {
 				if (!empty($o->fac_ref)) {
 					$ex = $lots[$id]->_seen[$pid];
@@ -285,43 +284,46 @@ function bf_load_lots($db) {
 	return $lots;
 }
 
-// ── Requête 1 : factures fournisseurs ayant au moins un paiement (année) ─────
-$sql = "SELECT DISTINCT
-    f.rowid       AS fac_id,
-    f.ref         AS fac_ref,
-    f.total_ttc   AS total_ttc,
-    f.datef       AS datef,
-    s.rowid       AS soc_id,
-    s.nom         AS tiers_nom
-FROM " . MAIN_DB_PREFIX . "facture_fourn f
-JOIN " . MAIN_DB_PREFIX . "societe s
-       ON s.rowid = f.fk_soc
-JOIN " . MAIN_DB_PREFIX . "paiementfourn_facturefourn pff
-       ON pff.fk_facturefourn = f.rowid
-WHERE f.entity = " . (int)$conf->entity . "
-  AND YEAR(f.datef) = " . (int)$annee . "
-ORDER BY " . (in_array($sortfield, ['s.nom','f.ref','f.total_ttc']) ? $sortfield . ' ' . $sortorder . ($sortfield !== 'f.ref' ? ', f.ref ASC' : '') : 's.nom ASC, f.ref ASC') . "";
+// ── Requêtes factures fournisseurs ────────────────────────────────────────────
+$factures     = [];
+$fac_ids      = [];
+$sql_order_base = in_array($sortfield, ['s.nom','f.ref','f.total_ttc'])
+    ? $sortfield . ' ' . $sortorder . ($sortfield !== 'f.ref' ? ', f.ref ASC' : '')
+    : 's.nom ASC, f.ref ASC';
 
-$resql = $db->query($sql);
-if (!$resql) {
-	if ($export !== 'csv') { llxHeader(); }
-	print '<div class="error">' . $db->lasterror() . '</div>';
-	if ($export !== 'csv') { llxFooter(); }
-	$db->close(); exit;
+if ($type_facture !== 'client') {
+	$sql = "SELECT DISTINCT
+	    f.rowid       AS fac_id,
+	    f.ref         AS fac_ref,
+	    f.total_ttc   AS total_ttc,
+	    f.datef       AS datef,
+	    s.rowid       AS soc_id,
+	    s.nom         AS tiers_nom
+	FROM " . MAIN_DB_PREFIX . "facture_fourn f
+	JOIN " . MAIN_DB_PREFIX . "societe s ON s.rowid = f.fk_soc
+	JOIN " . MAIN_DB_PREFIX . "paiementfourn_facturefourn pff ON pff.fk_facturefourn = f.rowid
+	WHERE f.entity = " . (int)$conf->entity . "
+	  AND YEAR(f.datef) = " . (int)$annee . "
+	ORDER BY " . $sql_order_base;
+
+	$resql = $db->query($sql);
+	if (!$resql) {
+		if ($export !== 'csv') { llxHeader(); }
+		print '<div class="error">' . $db->lasterror() . '</div>';
+		if ($export !== 'csv') { llxFooter(); }
+		$db->close(); exit;
+	}
+	while ($obj = $db->fetch_object($resql)) {
+		$obj->payments  = [];
+		$obj->packs     = [];
+		$obj->deja_paye = 0.0;
+		$obj->type      = 'fournisseur';
+		$factures[(int)$obj->fac_id] = $obj;
+		$fac_ids[] = (int)$obj->fac_id;
+	}
+	$db->free($resql);
 }
 
-$factures = [];
-$fac_ids  = [];
-while ($obj = $db->fetch_object($resql)) {
-	$obj->payments  = [];
-	$obj->packs     = [];
-	$obj->deja_paye = 0.0;
-	$factures[(int)$obj->fac_id] = $obj;
-	$fac_ids[] = (int)$obj->fac_id;
-}
-$db->free($resql);
-
-// ── Requête 2 : tous les virements (paiements) de ces factures ───────────────
 if (!empty($fac_ids)) {
 	$in = implode(',', array_map('intval', $fac_ids));
 
@@ -335,10 +337,8 @@ if (!empty($fac_ids)) {
 	    COALESCE(b.rowid, 0)                  AS bank_id,
 	    COALESCE(b.rappro, 0)                 AS rapproche
 	FROM " . MAIN_DB_PREFIX . "paiementfourn_facturefourn pff
-	JOIN " . MAIN_DB_PREFIX . "paiementfourn pay
-	       ON pay.rowid = pff.fk_paiementfourn
-	LEFT JOIN " . MAIN_DB_PREFIX . "bank b
-	       ON b.rowid = pay.fk_bank
+	JOIN " . MAIN_DB_PREFIX . "paiementfourn pay ON pay.rowid = pff.fk_paiementfourn
+	LEFT JOIN " . MAIN_DB_PREFIX . "bank b ON b.rowid = pay.fk_bank
 	WHERE pff.fk_facturefourn IN (" . $in . ")
 	ORDER BY pay.datep ASC, pay.rowid ASC";
 
@@ -354,59 +354,150 @@ if (!empty($fac_ids)) {
 		$db->free($rpay);
 	}
 
-	// ── Requête 3 : packs (produits) de ces factures ─────────────────────────
 	$sql_pk = "SELECT DISTINCT
 	    fd.fk_facture_fourn AS fac_id,
 	    p.ref               AS pack_ref,
 	    p.label             AS pack_label
 	FROM " . MAIN_DB_PREFIX . "facture_fourn_det fd
-	JOIN " . MAIN_DB_PREFIX . "product p
-	       ON p.rowid = fd.fk_product
+	JOIN " . MAIN_DB_PREFIX . "product p ON p.rowid = fd.fk_product
 	WHERE fd.fk_facture_fourn IN (" . $in . ")";
 
 	$rpk = $db->query($sql_pk);
 	if ($rpk) {
 		while ($pk = $db->fetch_object($rpk)) {
 			$fid = (int)$pk->fac_id;
-			if (isset($factures[$fid])) {
-				$factures[$fid]->packs[] = $pk;
-			}
+			if (isset($factures[$fid])) $factures[$fid]->packs[] = $pk;
 		}
 		$db->free($rpk);
 	}
 }
 
-// ── Calculs par facture + filtres PHP (rapproché / réf SEPA) ─────────────────
+// ── Requêtes factures clients ─────────────────────────────────────────────────
+$factures_client = [];
+$fac_ids_client  = [];
+
+if ($type_facture !== 'fournisseur') {
+	$sql_c = "SELECT DISTINCT
+	    f.rowid       AS fac_id,
+	    f.ref         AS fac_ref,
+	    f.total_ttc   AS total_ttc,
+	    f.datef       AS datef,
+	    s.rowid       AS soc_id,
+	    s.nom         AS tiers_nom
+	FROM " . MAIN_DB_PREFIX . "facture f
+	JOIN " . MAIN_DB_PREFIX . "societe s ON s.rowid = f.fk_soc
+	JOIN " . MAIN_DB_PREFIX . "paiement_facture pf ON pf.fk_facture = f.rowid
+	WHERE f.entity = " . (int)$conf->entity . "
+	  AND YEAR(f.datef) = " . (int)$annee . "
+	ORDER BY " . $sql_order_base;
+
+	$resql_c = $db->query($sql_c);
+	if (!$resql_c) {
+		if ($export !== 'csv') { llxHeader(); }
+		print '<div class="error">' . $db->lasterror() . '</div>';
+		if ($export !== 'csv') { llxFooter(); }
+		$db->close(); exit;
+	}
+	while ($obj = $db->fetch_object($resql_c)) {
+		$obj->payments  = [];
+		$obj->packs     = [];
+		$obj->deja_paye = 0.0;
+		$obj->type      = 'client';
+		$factures_client[(int)$obj->fac_id] = $obj;
+		$fac_ids_client[] = (int)$obj->fac_id;
+	}
+	$db->free($resql_c);
+}
+
+if (!empty($fac_ids_client)) {
+	$in_c = implode(',', array_map('intval', $fac_ids_client));
+
+	$sql_pay_c = "SELECT
+	    pf.fk_facture                          AS fac_id,
+	    pay.rowid                              AS pay_id,
+	    pay.datep                              AS date_paiement,
+	    COALESCE(pay.num_paiement, '')        AS ref_sepa,
+	    pf.amount                              AS montant_paye,
+	    COALESCE(b.num_releve, '')            AS num_releve,
+	    COALESCE(b.rowid, 0)                  AS bank_id,
+	    COALESCE(b.rappro, 0)                 AS rapproche
+	FROM " . MAIN_DB_PREFIX . "paiement_facture pf
+	JOIN " . MAIN_DB_PREFIX . "paiement pay ON pay.rowid = pf.fk_paiement
+	LEFT JOIN " . MAIN_DB_PREFIX . "bank b ON b.rowid = pay.fk_bank
+	WHERE pf.fk_facture IN (" . $in_c . ")
+	ORDER BY pay.datep ASC, pay.rowid ASC";
+
+	$rpay_c = $db->query($sql_pay_c);
+	if ($rpay_c) {
+		while ($p = $db->fetch_object($rpay_c)) {
+			$fid = (int)$p->fac_id;
+			if (isset($factures_client[$fid])) {
+				$factures_client[$fid]->payments[] = $p;
+				$factures_client[$fid]->deja_paye += (float)$p->montant_paye;
+			}
+		}
+		$db->free($rpay_c);
+	}
+
+	$sql_pk_c = "SELECT DISTINCT
+	    fd.fk_facture AS fac_id,
+	    p.ref         AS pack_ref,
+	    p.label       AS pack_label
+	FROM " . MAIN_DB_PREFIX . "facturedet fd
+	JOIN " . MAIN_DB_PREFIX . "product p ON p.rowid = fd.fk_product
+	WHERE fd.fk_facture IN (" . $in_c . ")";
+
+	$rpk_c = $db->query($sql_pk_c);
+	if ($rpk_c) {
+		while ($pk = $db->fetch_object($rpk_c)) {
+			$fid = (int)$pk->fac_id;
+			if (isset($factures_client[$fid])) $factures_client[$fid]->packs[] = $pk;
+		}
+		$db->free($rpk_c);
+	}
+}
+
+// ── Calculs par facture + filtres PHP ─────────────────────────────────────────
 $rows = [];
-foreach ($factures as $f) {
+
+$_apply = function($f) use ($s_sepa, $s_rapproche, &$rows) {
 	$f->restant       = (float)$f->total_ttc - $f->deja_paye;
 	$f->nb_versements = count($f->payments);
 	$f->nb_rapproche  = 0;
 	foreach ($f->payments as $p) { if ($p->rapproche) $f->nb_rapproche++; }
 	$f->nb_non_rapp   = $f->nb_versements - $f->nb_rapproche;
 
-	// Filtre réf SEPA : garder si un virement correspond
 	if ($s_sepa !== '') {
 		$match = false;
 		foreach ($f->payments as $p) {
 			if (stripos($p->ref_sepa, $s_sepa) !== false) { $match = true; break; }
 		}
-		if (!$match) continue;
+		if (!$match) return;
 	}
-
-	// Filtre rapproché
-	if ($s_rapproche === 'non' && $f->nb_non_rapp === 0) continue;          // que les factures avec virement(s) non rapproché(s)
-	if ($s_rapproche === 'oui' && ($f->nb_non_rapp > 0 || $f->nb_versements === 0)) continue; // que les factures entièrement rapprochées
-
+	if ($s_rapproche === 'non' && $f->nb_non_rapp === 0) return;
+	if ($s_rapproche === 'oui' && ($f->nb_non_rapp > 0 || $f->nb_versements === 0)) return;
 	$rows[] = $f;
-}
+};
 
-// ── Tri PHP pour champs calculés (déjà payé, restant, virements, rapprochement)
+foreach ($factures        as $f) { $_apply($f); }
+foreach ($factures_client as $f) { $_apply($f); }
+
+// ── Tri PHP ───────────────────────────────────────────────────────────────────
 $php_sort_map = ['deja_paye' => 'deja_paye', 'restant' => 'restant', 'nb_versements' => 'nb_versements', 'nb_rapproche' => 'nb_rapproche'];
+$sql_to_prop  = ['s.nom' => 'tiers_nom', 'f.ref' => 'fac_ref', 'f.total_ttc' => 'total_ttc'];
+
 if (isset($php_sort_map[$sortfield])) {
     $prop = $php_sort_map[$sortfield]; $so = $sortorder;
     usort($rows, function($a, $b) use ($prop, $so) {
         $cmp = $a->$prop <=> $b->$prop;
+        return $so === 'DESC' ? -$cmp : $cmp;
+    });
+} elseif ($type_facture === 'tous' && isset($sql_to_prop[$sortfield])) {
+    // Deux listes SQL mergées → re-tri PHP
+    $prop = $sql_to_prop[$sortfield]; $so = $sortorder;
+    usort($rows, function($a, $b) use ($prop, $so) {
+        $av = $a->$prop; $bv = $b->$prop;
+        $cmp = ($prop === 'total_ttc') ? ((float)$av <=> (float)$bv) : strnatcasecmp((string)$av, (string)$bv);
         return $so === 'DESC' ? -$cmp : $cmp;
     });
 }
@@ -427,7 +518,7 @@ foreach ($rows as $f) {
 }
 $nb_vir_non = $nb_vir_total - $nb_vir_rapp;
 
-// ── Export CSV (1 ligne par virement, avec contexte facture) ─────────────────
+// ── Export CSV ────────────────────────────────────────────────────────────────
 if ($export === 'csv') {
 	$filename = 'helpy_rapprochement_' . $annee . '.csv';
 	header('Content-Type: text/csv; charset=UTF-8');
@@ -435,18 +526,18 @@ if ($export === 'csv') {
 	header('Cache-Control: no-cache');
 	echo "\xEF\xBB\xBF";
 
-	echo implode(';', ['Tiers', 'N° facture', 'Pack', 'Montant attendu (EUR)', 'Deja paye (EUR)', 'Restant (EUR)',
+	echo implode(';', ['Type', 'Tiers', 'N° facture', 'Pack', 'Montant attendu (EUR)', 'Deja paye (EUR)', 'Restant (EUR)',
 	                    'Date virement', 'Ref SEPA', 'Montant virement (EUR)', 'Releve bancaire', 'Rapproche']) . "\r\n";
 
 	foreach ($rows as $f) {
 		$packs = [];
 		foreach ($f->packs as $pk) $packs[] = $pk->pack_label;
 		$pack_str = implode(' / ', $packs);
-
 		if (empty($f->payments)) continue;
 		foreach ($f->payments as $p) {
 			$date_p = $p->date_paiement ? date('d/m/Y', strtotime($p->date_paiement)) : '';
 			$line = [
+				$f->type === 'client' ? 'Client' : 'Fournisseur',
 				$f->tiers_nom,
 				$f->fac_ref,
 				$pack_str,
@@ -465,7 +556,7 @@ if ($export === 'csv') {
 	$db->close(); exit;
 }
 
-// ── Couleurs packs (même palette que agebf_packs.php) ────────────────────────
+// ── Couleurs packs ────────────────────────────────────────────────────────────
 $pack_colors = [
 	'PACK-SANTE'      => '#0d6efd',
 	'PACK-LUN'        => '#20c997',
@@ -527,12 +618,12 @@ function bfToggleAll(openAll) {
 </script>
 ';
 
-print load_fiche_titre("Rapprochement bancaire — paiements SEPA par facture", '', 'fa-exchange-alt');
+print load_fiche_titre("Rapprochement bancaire &mdash; paiements par facture", '', 'fa-exchange-alt');
 
-// ── Fil du workflow (étape 2 / 2) ─────────────────────────────────────────────
+// ── Fil du workflow ────────────────────────────────────────────────────────────
 $url_packs = DOL_URL_ROOT . '/custom/agebf/agebf_packs.php';
 print '<div style="display:flex;align-items:center;gap:8px;margin:2px 0 14px 0;font-size:0.88em">';
-print '<a href="' . $url_packs . '" style="background:#eef3f8;color:#0e6fb5;border-radius:14px;padding:4px 12px;text-decoration:none;border:1px solid #bcd4ea">1. Paiements à effectuer</a>';
+print '<a href="' . $url_packs . '" style="background:#eef3f8;color:#0e6fb5;border-radius:14px;padding:4px 12px;text-decoration:none;border:1px solid #bcd4ea">1. Paiements &agrave; effectuer</a>';
 print '<span style="color:#999">&rarr;</span>';
 print '<span style="background:#0e6fb5;color:#fff;border-radius:14px;padding:4px 12px;font-weight:bold">2. Rapprochement bancaire</span>';
 print '</div>';
@@ -571,6 +662,15 @@ for ($y = (int)date('Y') + 1; $y >= 2024; $y--) {
 }
 print '</select>';
 
+// Filtre type facture (NOUVEAU)
+$type_lib = ['fournisseur' => 'Fournisseurs', 'client' => 'Clients', 'tous' => 'Toutes'];
+print '<label style="font-weight:bold">Factures :</label>';
+print '<select name="type_facture" onchange="this.form.submit()" style="padding:4px 8px;border-radius:3px;border:1px solid #ccc">';
+foreach ($type_lib as $val => $lib) {
+	print '<option value="' . $val . '"' . ($val === $type_facture ? ' selected' : '') . '>' . $lib . '</option>';
+}
+print '</select>';
+
 // Filtre rapproché
 $rapp_lib = ['tous' => 'Toutes', 'oui' => 'Enti&egrave;rement rapproch&eacute;es', 'non' => 'Avec virement &agrave; rapprocher'];
 print '<label style="font-weight:bold">Rapproch&eacute; :</label>';
@@ -586,33 +686,32 @@ print '<input type="text" name="s_sepa" value="' . dol_escape_htmltag($s_sepa) .
     . 'style="padding:4px 8px;border-radius:3px;border:1px solid #ccc;width:130px">';
 print '<button type="submit" style="padding:4px 12px;background:#0d6efd;color:#fff;border:none;border-radius:3px;cursor:pointer">Filtrer</button>';
 
-// Bouton effacer
 if ($s_sepa !== '' || $s_rapproche !== 'tous') {
-	print '<a href="' . $url_base . '?annee=' . $annee . '" style="padding:4px 12px;background:#dc3545;color:#fff;border-radius:3px;font-size:0.85em;text-decoration:none">&#x2715; Effacer</a>';
+	print '<a href="' . $url_base . '?annee=' . $annee . '&type_facture=' . urlencode($type_facture) . '" style="padding:4px 12px;background:#dc3545;color:#fff;border-radius:3px;font-size:0.85em;text-decoration:none">&#x2715; Effacer</a>';
 }
 
-// Boutons déplier / replier tout
 print '<button type="button" onclick="bfToggleAll(true)" style="padding:4px 10px;background:#6c757d;color:#fff;border:none;border-radius:3px;font-size:0.85em;cursor:pointer">D&eacute;plier tout</button>';
 print '<button type="button" onclick="bfToggleAll(false)" style="padding:4px 10px;background:#6c757d;color:#fff;border:none;border-radius:3px;font-size:0.85em;cursor:pointer">Replier tout</button>';
 
-// Bouton export CSV
 print '<a href="' . $url_base . '?annee=' . $annee . '&s_rapproche=' . urlencode($s_rapproche)
-    . '&s_sepa=' . urlencode($s_sepa) . '&export=csv" '
+    . '&s_sepa=' . urlencode($s_sepa) . '&type_facture=' . urlencode($type_facture) . '&export=csv" '
     . 'style="margin-left:auto;padding:4px 14px;background:#28a745;color:#fff;border-radius:3px;font-size:0.85em;text-decoration:none;display:inline-flex;align-items:center;gap:6px">'
     . img_picto('', 'fa-download', '') . ' Export CSV</a>';
 
 print '</div>';
 print '</form>';
 
-// ── Bouton import relevé Belfius ──────────────────────────────────────────────
-print '<form method="POST" action="' . $url_base . '" enctype="multipart/form-data" style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding:10px 14px;background:#eef4ff;border:1px solid #cfe0ff;border-radius:6px">';
-print '<input type="hidden" name="token"  value="' . newToken() . '">';
-print '<input type="hidden" name="action" value="import_belfius">';
-print '<input type="hidden" name="annee"  value="' . $annee . '">';
-print '<label style="font-weight:bold;color:#0d4dad">' . img_picto('', 'fa-university', '') . ' Rapprochement automatique &mdash; importer le relev&eacute; Belfius (CSV) :</label>';
-print '<input type="file" name="belfius_file" accept=".csv,text/csv" required style="font-size:0.85em">';
-print '<button type="submit" style="padding:5px 14px;background:#0d6efd;color:#fff;border:none;border-radius:3px;cursor:pointer;white-space:nowrap">' . img_picto('', 'fa-upload', '') . ' Analyser le relev&eacute;</button>';
-print '</form>';
+// ── Bouton import relevé Belfius (fournisseurs uniquement) ────────────────────
+if ($type_facture !== 'client') {
+	print '<form method="POST" action="' . $url_base . '" enctype="multipart/form-data" style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding:10px 14px;background:#eef4ff;border:1px solid #cfe0ff;border-radius:6px">';
+	print '<input type="hidden" name="token"  value="' . newToken() . '">';
+	print '<input type="hidden" name="action" value="import_belfius">';
+	print '<input type="hidden" name="annee"  value="' . $annee . '">';
+	print '<label style="font-weight:bold;color:#0d4dad">' . img_picto('', 'fa-university', '') . ' Rapprochement automatique &mdash; importer le relev&eacute; Belfius (CSV) :</label>';
+	print '<input type="file" name="belfius_file" accept=".csv,text/csv" required style="font-size:0.85em">';
+	print '<button type="submit" style="padding:5px 14px;background:#0d6efd;color:#fff;border:none;border-radius:3px;cursor:pointer;white-space:nowrap">' . img_picto('', 'fa-upload', '') . ' Analyser le relev&eacute;</button>';
+	print '</form>';
+}
 
 // ── Écran de validation de l'import Belfius ──────────────────────────────────
 if ($action === 'import_belfius') {
@@ -626,32 +725,18 @@ if ($action === 'import_belfius') {
 		llxFooter(); $db->close(); exit;
 	}
 
-	// Lots SEPA (bons de virement) disponibles dans Dolibarr — base de correspondance
 	$lots = bf_load_lots($db);
 
-	// Matching : 1 ligne banque (ORDRE COLLECTIF, montant global) -> 1 lot SEPA.
-	// 1) CLE TEXTE INFAILLIBLE : la communication du releve porte "FICHIER : DOL/AAAAMMJJ/CTxx"
-	//    = le <MsgId> du fichier SEPA. On a stocke ce MsgId/CTxx par lot (table agebf_lot_sepa),
-	//    donc si le CTxx du releve correspond a un lot connu -> match exact, zero ambiguite.
-	// 2) REPLI (lots sans MsgId stocke, ex anciens lots) : MONTANT total du lot + DATE proche.
-	//      - montant unique + date proche       -> Sur
-	//      - montant unique, date eloignee       -> Probable
-	//      - plusieurs lots, date isole 1 seul   -> Probable
-	//      - plusieurs lots, date ne tranche pas -> Ambigu
-	//      - aucun lot a ce montant              -> Aucun lot
 	$byct = [];
 	foreach ($lots as $L) { if (!empty($L->ct_num)) $byct[(int) $L->ct_num] = $L; }
 
 	$matches = []; $cnt = ['exact' => 0, 'sur' => 0, 'probable' => 0, 'ambigu' => 0, 'nomatch' => 0];
 	foreach ($parsed as $line) {
 		$confiance = 'nomatch'; $lot = null;
-
-		// 1) cle texte : CTxx du releve -> MsgId stocke
 		if (!empty($line['ct']) && isset($byct[(int) $line['ct']])) {
 			$lot = $byct[(int) $line['ct']];
 			$confiance = 'exact';
 		} else {
-			// 2) repli : candidats par montant total du lot
 			$cands = [];
 			foreach ($lots as $L) {
 				if (abs($L->total - $line['montant']) <= 0.01) $cands[] = $L;
@@ -660,7 +745,6 @@ if ($action === 'import_belfius') {
 				$lot = $cands[0];
 				$confiance = bf_date_close($lot->date_op, $line['date_iso']) ? 'sur' : 'probable';
 			} elseif (count($cands) > 1) {
-				// affiner par date : un seul lot a la bonne date -> probable, sinon ambigu
 				$byd = [];
 				foreach ($cands as $L) { if (bf_date_close($L->date_op, $line['date_iso'])) $byd[] = $L; }
 				if (count($byd) === 1) { $lot = $byd[0]; $confiance = 'probable'; }
@@ -702,8 +786,6 @@ if ($action === 'import_belfius') {
 		$ln = $mm['line']; $confiance = $mm['conf']; $lot = $mm['lot'];
 		$rowbg = ($confiance === 'ambigu') ? ' style="background:#fff5f5"' : (($confiance === 'nomatch') ? ' style="background:#f6f6f6;color:#999"' : '');
 		print '<tr class="oddeven"' . $rowbg . '>';
-
-		// checkbox : cochee si lot trouve, confiance sur/probable, et au moins 1 virement a pointer
 		$can_apply = ($lot !== null && $lot->nb_libre > 0);
 		print '<td style="text-align:center">';
 		if ($can_apply) {
@@ -711,14 +793,11 @@ if ($action === 'import_belfius') {
 			print '<input type="checkbox" class="bf-apply" name="apply[' . $idx . ']" value="1"' . $checked . '>';
 		}
 		print '</td>';
-
 		print '<td style="white-space:nowrap">' . dol_escape_htmltag($ln['date_disp']) . '</td>';
 		print '<td style="white-space:nowrap"><b>' . dol_escape_htmltag($ln['extrait']) . '</b></td>';
 		print '<td class="right" style="white-space:nowrap;font-weight:bold">' . dol_escape_htmltag($ln['mont_disp']) . '&nbsp;&euro;</td>';
 		print '<td style="font-size:0.85em;max-width:340px">' . dol_escape_htmltag($ln['comm']) . '</td>';
 		print '<td style="white-space:nowrap">' . $badge[$confiance] . '</td>';
-
-		// Lot SEPA + detail des virements
 		print '<td>';
 		print '<input type="hidden" name="sel_releve[' . $idx . ']" value="' . dol_escape_htmltag($ln['extrait']) . '">';
 		if ($lot !== null) {
@@ -739,7 +818,6 @@ if ($action === 'import_belfius') {
 			} else {
 				print '<div style="font-size:0.85em;color:#28a745;font-weight:600">' . img_picto('', 'fa-check-circle', '') . ' d&eacute;j&agrave; enti&egrave;rement rapproch&eacute;</div>';
 			}
-			// detail expandable
 			print '<details style="margin-top:4px"><summary style="cursor:pointer;color:#0d6efd;font-size:0.82em">Voir le d&eacute;tail des ' . $lot->nb . ' virements</summary>';
 			print '<table style="width:100%;border-collapse:collapse;font-size:0.82em;margin-top:4px">';
 			foreach ($lot->virements as $v) {
@@ -761,7 +839,6 @@ if ($action === 'import_belfius') {
 		print '</tr>';
 	}
 	print '</table>';
-
 	print '<div style="margin-top:14px;display:flex;gap:10px">';
 	print '<button type="submit" style="padding:7px 18px;background:#28a745;color:#fff;border:none;border-radius:3px;cursor:pointer;font-weight:bold">' . img_picto('', 'fa-check', '') . ' Valider et rapprocher les lots coch&eacute;s</button>';
 	print '<a href="' . $url_base . '?annee=' . $annee . '" style="padding:7px 18px;background:#6c757d;color:#fff;border-radius:3px;text-decoration:none">Annuler</a>';
@@ -775,14 +852,14 @@ if ($action === 'import_belfius') {
 // ── Tableau (1 ligne par facture) ─────────────────────────────────────────────
 print '<table class="noborder centpercent">';
 print '<tr class="liste_titre">';
-print '<th style="width:28px"></th>'; // bouton toggle
-print '<th>'     . compta_sort_link('Tiers',           's.nom',       $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
-print '<th>'     . compta_sort_link('Facture / Pack',  'f.ref',       $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
-print '<th class="right">' . compta_sort_link('Montant attendu', 'f.total_ttc', $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
-print '<th class="right">'  . compta_sort_link('D&eacute;j&agrave; pay&eacute;', 'deja_paye',     $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
-print '<th class="right">'  . compta_sort_link('Restant',                        'restant',       $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
-print '<th class="center">' . compta_sort_link('Virements',                      'nb_versements', $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
-print '<th class="center">' . compta_sort_link('Rapprochement',                  'nb_rapproche',  $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa) . '</th>';
+print '<th style="width:28px"></th>';
+print '<th>'     . compta_sort_link('Tiers',           's.nom',       $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa, $type_facture) . '</th>';
+print '<th>'     . compta_sort_link('Facture / Pack',  'f.ref',       $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa, $type_facture) . '</th>';
+print '<th class="right">' . compta_sort_link('Montant attendu', 'f.total_ttc', $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa, $type_facture) . '</th>';
+print '<th class="right">' . compta_sort_link('D&eacute;j&agrave; pay&eacute;', 'deja_paye',     $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa, $type_facture) . '</th>';
+print '<th class="right">' . compta_sort_link('Restant',                        'restant',       $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa, $type_facture) . '</th>';
+print '<th class="center">' . compta_sort_link('Virements',                     'nb_versements', $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa, $type_facture) . '</th>';
+print '<th class="center">' . compta_sort_link('Rapprochement',                 'nb_rapproche',  $sortfield, $sortorder, $url_base, $annee, $s_rapproche, $s_sepa, $type_facture) . '</th>';
 print '</tr>';
 
 if (empty($rows)) {
@@ -792,22 +869,17 @@ if (empty($rows)) {
 foreach ($rows as $f) {
 	$fid = (int)$f->fac_id;
 
-	// Statut paiement
 	$is_solde = ($f->restant < 0.01);
-	if ($is_solde) {
-		$statut_paie = '<span style="color:#28a745;font-weight:bold">Sold&eacute;e</span>';
-	} else {
-		$statut_paie = '<span style="color:#fd7e14;font-weight:bold">Partielle</span>';
-	}
+	$statut_paie = $is_solde
+		? '<span style="color:#28a745;font-weight:bold">Sold&eacute;e</span>'
+		: '<span style="color:#fd7e14;font-weight:bold">Partielle</span>';
 
-	// Statut rapprochement
 	if ($f->nb_versements > 0 && $f->nb_non_rapp === 0) {
 		$rapp_cell = '<span style="color:#28a745;font-weight:bold">' . img_picto('', 'fa-check-circle', '') . ' ' . $f->nb_rapproche . '/' . $f->nb_versements . '</span>';
 	} else {
 		$rapp_cell = '<span style="color:#dc3545;font-weight:bold">' . img_picto('', 'fa-times-circle', '') . ' ' . $f->nb_rapproche . '/' . $f->nb_versements . '</span>';
 	}
 
-	// Packs badges
 	$pack_html = '';
 	foreach ($f->packs as $pk) {
 		$pack_color = $pack_colors[$pk->pack_ref] ?? '#6c757d';
@@ -815,25 +887,35 @@ foreach ($rows as $f) {
 		            . dol_escape_htmltag($pk->pack_label) . '</span>';
 	}
 
-	// Lien facture + tiers
-	$fac_url    = DOL_URL_ROOT . '/fourn/facture/card.php?facid=' . $fid;
-	$fac_link   = '<a href="' . $fac_url . '" style="color:#0d6efd;font-weight:600">' . dol_escape_htmltag($f->fac_ref) . '</a>';
+	// Badge type (visible seulement quand filtre = Toutes)
+	$type_badge = '';
+	if ($type_facture === 'tous') {
+		if ($f->type === 'client') {
+			$type_badge = '<span style="background:#0d6efd;color:#fff;font-size:0.7em;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-right:3px">Client</span>';
+		} else {
+			$type_badge = '<span style="background:#fd7e14;color:#fff;font-size:0.7em;padding:1px 5px;border-radius:8px;vertical-align:middle;margin-right:3px">Fourn.</span>';
+		}
+	}
+
+	// URLs selon type de facture
+	$fac_url  = ($f->type === 'client')
+		? DOL_URL_ROOT . '/compta/facture/card.php?facid=' . $fid
+		: DOL_URL_ROOT . '/fourn/facture/card.php?facid=' . $fid;
+	$fac_link   = '<a href="' . $fac_url . '" style="color:#0d6efd;font-weight:600">' . $type_badge . dol_escape_htmltag($f->fac_ref) . '</a>';
 	$tiers_link = '<a href="' . DOL_URL_ROOT . '/societe/card.php?socid=' . (int)$f->soc_id . '">' . dol_escape_htmltag($f->tiers_nom) . '</a>';
 
-	// Barre de progression paiement
-	$pct = ((float)$f->total_ttc > 0) ? min(100, round($f->deja_paye / (float)$f->total_ttc * 100)) : 0;
+	$pct  = ((float)$f->total_ttc > 0) ? min(100, round($f->deja_paye / (float)$f->total_ttc * 100)) : 0;
 	$prog = '<span class="bf-prog-wrap" title="' . $pct . '% pay&eacute;"><span class="bf-prog-bar" style="width:' . $pct . '%"></span></span>';
 
-	// Couleur de fond si virement(s) à rapprocher
 	$bg = ($f->nb_non_rapp > 0) ? ' style="background-color:#fff5f5"' : '';
-
 	$is_open  = ($open_fac === $fid);
 	$open_cls = $is_open ? ' open' : '';
 
-	print '<tr class="oddeven"' . $bg . ' id="fac-' . $fid . '">';
+	print '<tr class="oddeven"' . $bg . ' id="fac-' . $fid . '-' . $f->type . '">';
 	print '<td style="text-align:center;padding:6px 4px">';
 	if (!empty($f->payments)) {
-		print '<button type="button" id="bf-btn-' . $fid . '" class="bf-toggle-btn' . $open_cls . '" onclick="bfToggle(' . $fid . ')" title="Voir les virements">&#9658;</button>';
+		$btn_id = $fid . '_' . $f->type;
+		print '<button type="button" id="bf-btn-' . $btn_id . '" class="bf-toggle-btn' . $open_cls . '" onclick="bfToggle(\'' . $btn_id . '\')" title="Voir les virements">&#9658;</button>';
 	}
 	print '</td>';
 	print '<td>' . $tiers_link . '</td>';
@@ -845,15 +927,15 @@ foreach ($rows as $f) {
 	print '<td class="center" style="white-space:nowrap">' . $rapp_cell . '</td>';
 	print '</tr>';
 
-	// ── Lignes de détail : un virement par ligne, avec action Rapprocher ──────
 	if (!empty($f->payments)) {
-		print '<tr class="bf-detail-row bf-det-' . $fid . $open_cls . '"' . $bg . '>';
+		$btn_id = $fid . '_' . $f->type;
+		print '<tr class="bf-detail-row bf-det-' . $btn_id . $open_cls . '"' . $bg . '>';
 		print '<td colspan="8" style="padding:0 16px 12px 36px' . ($f->nb_non_rapp > 0 ? ';background-color:#fff5f5' : '') . '">';
 		print '<div class="bf-detail-inner">';
 		print '<table style="width:100%;border-collapse:collapse;font-size:0.9em">';
 		print '<tr style="color:#666;border-bottom:1px solid #ddd">';
 		print '<th style="text-align:left;padding:4px 8px;font-weight:600">Date</th>';
-		print '<th style="text-align:left;padding:4px 8px;font-weight:600">R&eacute;f. SEPA</th>';
+		print '<th style="text-align:left;padding:4px 8px;font-weight:600">R&eacute;f. paiement</th>';
 		print '<th style="text-align:right;padding:4px 8px;font-weight:600">Montant vers&eacute;</th>';
 		print '<th style="text-align:left;padding:4px 8px;font-weight:600">Relev&eacute; bancaire</th>';
 		print '<th style="text-align:center;padding:4px 8px;font-weight:600">Rapproch&eacute;</th>';
@@ -863,17 +945,15 @@ foreach ($rows as $f) {
 		foreach ($f->payments as $p) {
 			$pid = (int)$p->pay_id;
 
-			// Réf SEPA (cliquable vers l'écriture bancaire du virement)
 			if ($p->ref_sepa !== '') {
-				$sepa_txt = '<span style="font-family:monospace;font-weight:600">' . dol_escape_htmltag($p->ref_sepa) . '</span>';
+				$sepa_txt  = '<span style="font-family:monospace;font-weight:600">' . dol_escape_htmltag($p->ref_sepa) . '</span>';
 				$sepa_cell = ($p->bank_id > 0)
-					? '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . (int)$p->bank_id . '" target="_blank" style="color:#0d6efd;text-decoration:none" title="Voir l\'ecriture bancaire">' . $sepa_txt . '</a>'
+					? '<a href="' . DOL_URL_ROOT . '/compta/bank/line.php?rowid=' . (int)$p->bank_id . '" target="_blank" style="color:#0d6efd;text-decoration:none">' . $sepa_txt . '</a>'
 					: $sepa_txt;
 			} else {
 				$sepa_cell = '<span style="color:#aaa">—</span>';
 			}
 
-			// Relevé bancaire : n° de relevé Belfius, uniquement si pointé ET saisi (≠ réf SEPA pré-remplie)
 			$has_releve  = ($p->rapproche && $p->num_releve !== '' && $p->num_releve !== $p->ref_sepa);
 			$releve_cell = $has_releve
 				? '<a href="' . DOL_URL_ROOT . '/compta/bank/bankentries_list.php?account=2&search_num_releve='
@@ -881,31 +961,30 @@ foreach ($rows as $f) {
 				  . dol_escape_htmltag($p->num_releve) . '</a>'
 				: '<span style="color:#aaa">—</span>';
 
-			// Badge rapproché
-			if ($p->rapproche) {
-				$pbadge = '<span style="color:#28a745;font-weight:bold">' . img_picto('', 'fa-check-circle', '') . ' Oui</span>';
-			} else {
-				$pbadge = '<span style="color:#dc3545;font-weight:bold">' . img_picto('', 'fa-times-circle', '') . ' Non</span>';
-			}
+			$pbadge = $p->rapproche
+				? '<span style="color:#28a745;font-weight:bold">' . img_picto('', 'fa-check-circle', '') . ' Oui</span>'
+				: '<span style="color:#dc3545;font-weight:bold">' . img_picto('', 'fa-times-circle', '') . ' Non</span>';
 
-			// Lien fiche paiement
-			$pay_url   = DOL_URL_ROOT . '/fourn/paiement/card.php?id=' . $pid;
+			// Lien fiche paiement selon type
+			$pay_url  = ($f->type === 'client')
+				? DOL_URL_ROOT . '/compta/paiement/card.php?id=' . $pid
+				: DOL_URL_ROOT . '/fourn/paiement/card.php?id=' . $pid;
 			$fiche_btn = '<a href="' . $pay_url . '" style="padding:2px 8px;background:#6c757d;color:#fff;border-radius:3px;font-size:0.8em;text-decoration:none;display:inline-flex;align-items:center;gap:4px;margin-right:6px">'
 			           . img_picto('', 'fa-eye', '') . ' Fiche</a>';
 
-			// Action rapprocher / dé-rapprocher
 			if (!$p->rapproche) {
 				$action_html = '<form method="POST" action="' . $url_base . '" style="display:inline-flex;align-items:center;gap:5px">'
 				           . '<input type="hidden" name="action"       value="rapprocher">'
 				           . '<input type="hidden" name="token"        value="' . newToken() . '">'
 				           . '<input type="hidden" name="pay_id"       value="' . $pid . '">'
 				           . '<input type="hidden" name="fac_id"       value="' . $fid . '">'
+				           . '<input type="hidden" name="pay_type"     value="' . dol_escape_htmltag($f->type) . '">'
 				           . '<input type="hidden" name="annee"        value="' . $annee . '">'
 				           . '<input type="hidden" name="s_rapproche"  value="' . dol_escape_htmltag($s_rapproche) . '">'
 				           . '<input type="hidden" name="s_sepa"       value="' . dol_escape_htmltag($s_sepa) . '">'
+				           . '<input type="hidden" name="type_facture" value="' . dol_escape_htmltag($type_facture) . '">'
 				           . '<input type="text"   name="num_releve" placeholder="Ex: Belfius 8/32" '
-				           .        'style="width:130px;padding:2px 6px;font-size:0.82em;border:1px solid #ccc;border-radius:3px" '
-				           .        'title="Numero du releve bancaire Belfius">'
+				           .        'style="width:130px;padding:2px 6px;font-size:0.82em;border:1px solid #ccc;border-radius:3px">'
 				           . '<button type="submit" style="padding:2px 10px;background:#28a745;color:#fff;border:none;border-radius:3px;font-size:0.82em;cursor:pointer;white-space:nowrap">'
 				           . img_picto('', 'fa-check', '') . ' Rapprocher</button>'
 				           . '</form>';
@@ -914,13 +993,15 @@ foreach ($rows as $f) {
 				if ($user->admin) {
 					$action_html = '<form method="POST" action="' . $url_base . '" style="display:inline-flex;align-items:center" '
 					           . 'onsubmit="return confirm(\'Annuler le rapprochement de ce virement ?\')">'
-					           . '<input type="hidden" name="action"      value="derapprocher">'
-					           . '<input type="hidden" name="token"       value="' . newToken() . '">'
-					           . '<input type="hidden" name="pay_id"      value="' . $pid . '">'
-					           . '<input type="hidden" name="fac_id"      value="' . $fid . '">'
-					           . '<input type="hidden" name="annee"       value="' . $annee . '">'
-					           . '<input type="hidden" name="s_rapproche" value="' . dol_escape_htmltag($s_rapproche) . '">'
-					           . '<input type="hidden" name="s_sepa"      value="' . dol_escape_htmltag($s_sepa) . '">'
+					           . '<input type="hidden" name="action"       value="derapprocher">'
+					           . '<input type="hidden" name="token"        value="' . newToken() . '">'
+					           . '<input type="hidden" name="pay_id"       value="' . $pid . '">'
+					           . '<input type="hidden" name="fac_id"       value="' . $fid . '">'
+					           . '<input type="hidden" name="pay_type"     value="' . dol_escape_htmltag($f->type) . '">'
+					           . '<input type="hidden" name="annee"        value="' . $annee . '">'
+					           . '<input type="hidden" name="s_rapproche"  value="' . dol_escape_htmltag($s_rapproche) . '">'
+					           . '<input type="hidden" name="s_sepa"       value="' . dol_escape_htmltag($s_sepa) . '">'
+					           . '<input type="hidden" name="type_facture" value="' . dol_escape_htmltag($type_facture) . '">'
 					           . '<button type="submit" style="padding:2px 9px;background:#dc3545;color:#fff;border:none;border-radius:3px;font-size:0.78em;cursor:pointer;white-space:nowrap">'
 					           . img_picto('', 'fa-undo', '') . ' Ann.</button>'
 					           . '</form>';
@@ -945,7 +1026,6 @@ foreach ($rows as $f) {
 
 print '</table>';
 
-// ── Légende ───────────────────────────────────────────────────────────────────
 print '<div style="margin-top:14px;font-size:0.85em;color:#666;display:flex;gap:18px;flex-wrap:wrap;align-items:center">';
 print '<b>L&eacute;gende :</b>';
 print '<span>Colonne <b>Rapprochement</b> = nombre de virements rapproch&eacute;s / total des virements de la facture</span>';

@@ -72,7 +72,7 @@ class modAgeBF extends DolibarrModules
 		$this->editor_url = '';
 
 		// Possible values for version are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated', 'experimental_deprecated' or a version string like 'x.y.z'
-		$this->version = '4.3';
+		$this->version = '5.1';
 		// Url to the file with your last numberversion of this module
 		//$this->url_last_version = 'http://www.example.com/versionmodule.txt';
 
@@ -383,6 +383,23 @@ class modAgeBF extends DolibarrModules
 			'user'     => 2,
 		);
 
+		// ── Sous-entrée gauche : Assurances ──────────────────────────────────────
+		$this->menu[$r++] = array(
+			'fk_menu'  => 'fk_mainmenu=agebf',
+			'type'     => 'left',
+			'titre'    => 'Assurances',
+			'prefix'   => img_picto('', 'fa-heart', 'class="pictofixedwidth valignmiddle paddingright"'),
+			'mainmenu' => 'agebf',
+			'leftmenu' => 'agebf_assurances',
+			'url'      => '/custom/agebf/agebf_assurances.php',
+			'langs'    => 'agebf@agebf',
+			'position' => 50,
+			'enabled'  => 'isModEnabled("agebf")',
+			'perms'    => '1',
+			'target'   => '',
+			'user'     => 2,
+		);
+
 		/* BEGIN MODULEBUILDER LEFTMENU MYOBJECT */
 		/*
 		$this->menu[$r++]=array(
@@ -521,9 +538,11 @@ class modAgeBF extends DolibarrModules
 		$extrafields = new ExtraFields($this->db);
 
 		// Sur les contacts (socpeople)
-		$extrafields->addExtraField('age_1jan',      "Âge au 1er janvier",  'int',     1, 3,  'socpeople', 0, 0, '',  '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
-		$extrafields->addExtraField('fete_enfants',  "Fête des enfants",    'boolean', 2, '',  'socpeople', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
-		$extrafields->addExtraField('fk_parent',     "Parent (contact ID)", 'int',     3, 11, 'socpeople', 0, 0, '',  '', 0, '', 0, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+		$extrafields->addExtraField('age_1jan',          "Âge au 1er janvier",  'int',     1, 3,  'socpeople', 0, 0, '',  '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+		$extrafields->addExtraField('fete_enfants',      "Fête des enfants",    'boolean', 2, '',  'socpeople', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+		$extrafields->addExtraField('fk_parent',         "Parent (contact ID)", 'int',     3, 11, 'socpeople', 0, 0, '',  '', 0, '', 0, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+		$extrafields->addExtraField('assurance_hospi',   "Assurance Hospi.",   'boolean', 4, '',  'socpeople', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+		$extrafields->addExtraField('assurance_dentaire',"Assurance dentaire", 'boolean', 5, '',  'socpeople', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
 
 		// Sur les Tiers (societe)
 		$extrafields->addExtraField('fete_enfants',      "Fête des enfants",        'boolean', 1, '',  'societe', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
