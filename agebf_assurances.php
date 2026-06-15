@@ -150,8 +150,7 @@ JOIN " . MAIN_DB_PREFIX . "socpeople c ON c.fk_soc = s.rowid
 LEFT JOIN " . MAIN_DB_PREFIX . "socpeople_extrafields ex ON ex.fk_object = c.rowid
 WHERE s.entity = " . (int)$conf->entity . "
   AND c.entity = " . (int)$conf->entity . "
-  AND c.statut  = 1"
-. ($show_inactifs ? '' : " AND s.status = 1")
+  AND c.statut = 1"
 . " ORDER BY s.status DESC, s.nom ASC,
     CASE c.poste
         WHEN 'Employe'  THEN 1
@@ -290,19 +289,10 @@ if ($has_assurcard && $has_hospi && $stats_hospi_missing > 0) {
 print '<button type="button" onclick="assToggleAll(true)" style="padding:6px 12px;background:#6c757d;color:#fff;border:none;border-radius:3px;font-size:0.85em;cursor:pointer">D&eacute;plier tout</button>';
 print '<button type="button" onclick="assToggleAll(false)" style="padding:6px 12px;background:#6c757d;color:#fff;border:none;border-radius:3px;font-size:0.85em;cursor:pointer">Replier tout</button>';
 
-// Toggle Tiers archivés
-if ($show_inactifs) {
-	print '<a href="' . $url_base . '" style="padding:6px 12px;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:3px;font-size:0.85em;text-decoration:none;font-weight:600">';
-	print '&#9760; Masquer les archiv&eacute;s</a>';
-} else {
-	// Compter les Tiers inactifs (requête rapide)
-	$r_inact = $db->query("SELECT COUNT(*) AS nb FROM " . MAIN_DB_PREFIX . "societe WHERE status = 0 AND entity = " . (int)$conf->entity);
-	$nb_inact = $r_inact ? (int)$db->fetch_object($r_inact)->nb : 0;
-	$db->free($r_inact);
-	if ($nb_inact > 0) {
-		print '<a href="' . $url_base . '?show_inactifs=1" style="padding:6px 12px;background:#f8f9fa;color:#6c757d;border:1px solid #dee2e6;border-radius:3px;font-size:0.85em;text-decoration:none">';
-		print '&#9760; Afficher les archiv&eacute;s <span style="background:#6c757d;color:#fff;border-radius:8px;padding:0 5px;font-size:0.85em">' . $nb_inact . '</span></a>';
-	}
+// Info tiers archivés toujours visibles
+if ($nb_tiers_inactifs > 0) {
+	print '<span style="font-size:0.82em;color:#6c757d;padding:4px 10px;background:#f8f9fa;border:1px solid #dee2e6;border-radius:3px">';
+	print '&#9760; ' . $nb_tiers_inactifs . ' tiers archiv&eacute;(s) — affich&eacute;(s) en gris&eacute;</span>';
 }
 
 print '</div>';
@@ -311,7 +301,6 @@ print '</div>';
 print '<form method="POST" action="' . $url_base . '">';
 print '<input type="hidden" name="token"         value="' . newToken() . '">';
 print '<input type="hidden" name="action"        value="save">';
-print '<input type="hidden" name="show_inactifs" value="' . $show_inactifs . '">';
 
 print '<table class="noborder centpercent">';
 print '<tr class="liste_titre">';
