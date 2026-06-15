@@ -13,12 +13,39 @@ if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.in
 if (!$res) { die("Include of main fails"); }
 
 // ── Paramètres ────────────────────────────────────────────────────────────────
-$action         = GETPOST('action', 'aZ09');
-$show_inactifs  = GETPOST('show_inactifs', 'int') ? 1 : 0;
-$url_base       = DOL_URL_ROOT . '/custom/agebf/agebf_assurances.php';
-$url_base_si    = $url_base . ($show_inactifs ? '?show_inactifs=1' : '');
-$msg_ok   = '';
-$msg_err  = '';
+$action           = GETPOST('action',           'aZ09');
+$url_base         = DOL_URL_ROOT . '/custom/agebf/agebf_assurances.php';
+$msg_ok           = '';
+$msg_err          = '';
+
+// Filtres
+$search_nom        = trim(GETPOST('search_nom',       'alphanohtml'));
+$filter_assurance  = GETPOST('filter_assurance', 'aZ09'); // '' | hospi | dentaire | both | none
+$filter_assurcard  = GETPOST('filter_assurcard', 'aZ09'); // '' | with | without | anomalie
+$filter_statut     = GETPOST('filter_statut',    'aZ09'); // '' | actif | archive
+$sort_col          = GETPOST('sort',             'aZ09'); // nom | contacts | hospi | dentaire
+$sort_dir          = GETPOST('sort_dir',         'aZ09') === 'desc' ? 'desc' : 'asc';
+
+// Construction URL avec filtres préservés
+function ass_url(string $base, array $override = []): string {
+    global $search_nom, $filter_assurance, $filter_assurcard, $filter_statut, $sort_col, $sort_dir;
+    $p = array_merge([
+        'search_nom'      => $search_nom,
+        'filter_assurance'=> $filter_assurance,
+        'filter_assurcard'=> $filter_assurcard,
+        'filter_statut'   => $filter_statut,
+        'sort'            => $sort_col,
+        'sort_dir'        => $sort_dir,
+    ], $override);
+    $q = http_build_query(array_filter($p, fn($v) => $v !== '' && $v !== null));
+    return $base . ($q ? '?' . $q : '');
+}
+function ass_sort_th(string $col, string $label, string $base, string $cur_col, string $cur_dir, string $style = ''): string {
+    $new_dir = ($cur_col === $col && $cur_dir === 'asc') ? 'desc' : 'asc';
+    $url     = ass_url($base, ['sort' => $col, 'sort_dir' => $new_dir]);
+    $icon    = $cur_col !== $col ? '<span style="opacity:.3">&#8597;</span>' : ($cur_dir === 'asc' ? '&#8593;' : '&#8595;');
+    return '<th class="center' . ($style ? '' : '') . '" style="cursor:pointer;' . $style . '"><a href="' . $url . '" style="text-decoration:none;color:inherit">' . $label . ' ' . $icon . '</a></th>';
+}
 
 // ── Vérification des colonnes extrafields ─────────────────────────────────────
 $has_hospi    = false;
@@ -50,7 +77,7 @@ if ($action === 'set_motif' && !empty($_POST['token'])) {
 		          . " VALUES ($soc_id, '" . $db->escape($motif) . "')"
 		          . " ON DUPLICATE KEY UPDATE motif_archive = '" . $db->escape($motif) . "'");
 	}
-	header('Location: ' . $url_base . '?show_inactifs=1&motif_ok=1');
+	header('Location: ' . ass_url($url_base, ['motif_ok' => '1']));
 	exit;
 }
 
@@ -70,7 +97,7 @@ if ($action === 'sync_assurcard' && !empty($_POST['token']) && $has_assurcard &&
 		}
 		$db->free($r_sync);
 	}
-	header('Location: ' . $url_base_si . (strpos($url_base_si, '?') !== false ? '&' : '?') . 'sync_ok=' . $nb_sync);
+	header('Location: ' . ass_url($url_base, ['sync_ok' => $nb_sync]));
 	exit;
 }
 
@@ -108,7 +135,7 @@ if ($action === 'save' && !empty($_POST['token'])) {
 		         . " ON DUPLICATE KEY UPDATE $dup";
 		if ($db->query($sql_ups)) $nb_saved++;
 	}
-	header('Location: ' . $url_base_si . (strpos($url_base_si, '?') !== false ? '&' : '?') . 'save_ok=' . $nb_saved);
+	header('Location: ' . ass_url($url_base, ['save_ok' => $nb_saved]));
 	exit;
 }
 
@@ -132,6 +159,10 @@ $sel_dentaire = $has_dentaire ? 'COALESCE(ex.assurance_dentaire, 0)' : '0';
 $sel_assurcard     = $has_assurcard ? "COALESCE(ex.assurcard, '')" : "''";
 $sel_motif_archive = "COALESCE(ta.motif_archive, '')";
 
+// ORDER BY dynamique (nom seulement — contacts/hospi/dentaire triés en PHP)
+$nom_dir    = ($sort_col === 'nom') ? strtoupper($sort_dir) : 'ASC';
+$sql_nom_ok = (!in_array($sort_col, ['contacts', 'hospi', 'dentaire']));
+
 $sql_data = "SELECT
     s.rowid    AS soc_id,
     s.nom      AS soc_nom,
@@ -151,7 +182,10 @@ LEFT JOIN " . MAIN_DB_PREFIX . "socpeople_extrafields ex ON ex.fk_object = c.row
 WHERE s.entity = " . (int)$conf->entity . "
   AND c.entity = " . (int)$conf->entity . "
   AND c.statut = 1"
-. " ORDER BY s.status DESC, s.nom ASC,
+. ($search_nom    ? " AND s.nom LIKE '%" . $db->escape($search_nom) . "%'" : "")
+. ($filter_statut === 'actif'   ? " AND s.status = 1" : "")
+. ($filter_statut === 'archive' ? " AND s.status = 0" : "")
+. " ORDER BY s.status DESC, s.nom " . $nom_dir . ",
     CASE c.poste
         WHEN 'Employe'  THEN 1
         WHEN 'Conjoint' THEN 2
@@ -194,9 +228,43 @@ while ($obj = $db->fetch_object($resql)) {
 }
 $db->free($resql);
 
-foreach ($tiers_list as $t) {
+// ── Calcul compteurs par Tiers (nécessaire avant filtrage) ───────────────────
+foreach ($tiers_list as $sid => $t) {
+	$nh = $nd = $na = $naw = 0;
+	foreach ($t->contacts as $c) {
+		if ($c->hospi)    $nh++;
+		if ($c->dentaire) $nd++;
+		if ($c->assurcard !== '') { $na++; if (!$c->hospi) $naw++; }
+	}
+	$tiers_list[$sid]->nb_hospi    = $nh;
+	$tiers_list[$sid]->nb_dentaire = $nd;
+	$tiers_list[$sid]->nb_assurcard = $na;
+	$tiers_list[$sid]->nb_assurcard_warn = $naw;
 	if ($t->soc_status === 0) $nb_tiers_inactifs++;
 }
+
+// ── Filtrage PHP (assurance, assurcard) ───────────────────────────────────────
+foreach ($tiers_list as $sid => $t) {
+	$remove = false;
+	if ($filter_assurance === 'hospi'    && !($t->nb_hospi > 0))                       $remove = true;
+	if ($filter_assurance === 'dentaire' && !($t->nb_dentaire > 0))                    $remove = true;
+	if ($filter_assurance === 'both'     && !($t->nb_hospi > 0 && $t->nb_dentaire > 0)) $remove = true;
+	if ($filter_assurance === 'none'     && !($t->nb_hospi == 0 && $t->nb_dentaire == 0)) $remove = true;
+	if ($filter_assurcard === 'with'     && $t->nb_assurcard == 0)                     $remove = true;
+	if ($filter_assurcard === 'without'  && $t->nb_assurcard > 0)                      $remove = true;
+	if ($filter_assurcard === 'anomalie' && $t->nb_assurcard_warn == 0)                $remove = true;
+	if ($remove) unset($tiers_list[$sid]);
+}
+
+// ── Tri PHP (colonnes contacts / hospi / dentaire) ────────────────────────────
+if (in_array($sort_col, ['contacts', 'hospi', 'dentaire'])) {
+	uasort($tiers_list, function($a, $b) use ($sort_col, $sort_dir) {
+		$va = $sort_col === 'contacts' ? count($a->contacts) : ($sort_col === 'hospi' ? $a->nb_hospi : $a->nb_dentaire);
+		$vb = $sort_col === 'contacts' ? count($b->contacts) : ($sort_col === 'hospi' ? $b->nb_hospi : $b->nb_dentaire);
+		return $sort_dir === 'desc' ? $vb - $va : $va - $vb;
+	});
+}
+
 $nb_tiers    = count($tiers_list);
 $nb_contacts = array_sum(array_map(fn($t) => count($t->contacts), $tiers_list));
 
@@ -297,18 +365,62 @@ if ($nb_tiers_inactifs > 0) {
 
 print '</div>';
 
+// ── Barre de filtres ──────────────────────────────────────────────────────────
+$has_filter = ($search_nom || $filter_assurance || $filter_assurcard || $filter_statut);
+print '<form method="GET" action="' . $url_base . '" style="margin-bottom:12px">';
+// Préserver sort
+if ($sort_col) { print '<input type="hidden" name="sort"     value="' . dol_escape_htmltag($sort_col) . '">'; }
+if ($sort_dir) { print '<input type="hidden" name="sort_dir" value="' . dol_escape_htmltag($sort_dir) . '">'; }
+print '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 14px;background:#f8f9fa;border:1px solid #dee2e6;border-radius:6px">';
+
+// Recherche nom
+print '<input type="text" name="search_nom" value="' . dol_escape_htmltag($search_nom) . '" placeholder="&#128269; Rechercher un Tiers..." style="padding:5px 10px;border:1px solid #ced4da;border-radius:4px;font-size:0.88em;min-width:200px">';
+
+// Filtre assurance
+print '<select name="filter_assurance" style="padding:5px 8px;border:1px solid #ced4da;border-radius:4px;font-size:0.88em">';
+foreach (['' => '&#128149; Assurance — Tous', 'hospi' => 'Hospi. seulement', 'dentaire' => 'Dentaire seulement', 'both' => 'Hospi. + Dentaire', 'none' => 'Aucune assurance'] as $v => $l) {
+	print '<option value="' . $v . '"' . ($filter_assurance === $v ? ' selected' : '') . '>' . $l . '</option>';
+}
+print '</select>';
+
+// Filtre assurcard
+print '<select name="filter_assurcard" style="padding:5px 8px;border:1px solid #ced4da;border-radius:4px;font-size:0.88em">';
+foreach (['' => '&#128196; Assurcard — Tous', 'with' => 'Avec N&#176; Assurcard', 'without' => 'Sans N&#176; Assurcard', 'anomalie' => '&#9888; Anomalie (sans Hospi.)'] as $v => $l) {
+	print '<option value="' . $v . '"' . ($filter_assurcard === $v ? ' selected' : '') . '>' . $l . '</option>';
+}
+print '</select>';
+
+// Filtre statut
+print '<select name="filter_statut" style="padding:5px 8px;border:1px solid #ced4da;border-radius:4px;font-size:0.88em">';
+foreach (['' => 'Actifs + archiv&#233;s', 'actif' => 'Actifs seulement', 'archive' => 'Archiv&#233;s seulement'] as $v => $l) {
+	print '<option value="' . $v . '"' . ($filter_statut === $v ? ' selected' : '') . '>' . $l . '</option>';
+}
+print '</select>';
+
+print '<button type="submit" style="padding:5px 14px;background:#6f42c1;color:#fff;border:none;border-radius:4px;font-size:0.88em;cursor:pointer;font-weight:600">Filtrer</button>';
+if ($has_filter) {
+	print '<a href="' . $url_base . ($sort_col ? '?sort=' . urlencode($sort_col) . '&sort_dir=' . $sort_dir : '') . '" style="padding:5px 10px;font-size:0.85em;color:#6c757d;text-decoration:none;border:1px solid #dee2e6;border-radius:4px;background:#fff">&#10005; R&eacute;initialiser</a>';
+}
+print '<span style="margin-left:auto;font-size:0.82em;color:#6c757d">' . $nb_tiers . ' tiers affich&eacute;(s)</span>';
+print '</div>';
+print '</form>';
+
 // ── Tableau ───────────────────────────────────────────────────────────────────
 print '<form method="POST" action="' . $url_base . '">';
-print '<input type="hidden" name="token"         value="' . newToken() . '">';
-print '<input type="hidden" name="action"        value="save">';
+print '<input type="hidden" name="token"  value="' . newToken() . '">';
+print '<input type="hidden" name="action" value="save">';
+// Préserver les filtres dans le formulaire save
+foreach (['search_nom' => $search_nom, 'filter_assurance' => $filter_assurance, 'filter_assurcard' => $filter_assurcard, 'filter_statut' => $filter_statut, 'sort' => $sort_col, 'sort_dir' => $sort_dir] as $k => $v) {
+	if ($v !== '') print '<input type="hidden" name="' . $k . '" value="' . dol_escape_htmltag($v) . '">';
+}
 
 print '<table class="noborder centpercent">';
 print '<tr class="liste_titre">';
 print '<th style="width:28px"></th>';
-print '<th>Tiers</th>';
-print '<th class="center">Contacts</th>';
-print '<th class="center" style="color:#6f42c1">' . img_picto('', 'fa-heart', '') . ' Hospi.</th>';
-print '<th class="center" style="color:#0d6efd">' . img_picto('', 'fa-tooth', '') . ' Dentaire</th>';
+print ass_sort_th('nom',      'Tiers',    $url_base, $sort_col, $sort_dir, 'text-align:left');
+print ass_sort_th('contacts', 'Contacts', $url_base, $sort_col, $sort_dir);
+print ass_sort_th('hospi',    img_picto('', 'fa-heart', 'style="color:#6f42c1"') . ' <span style="color:#6f42c1">Hospi.</span>', $url_base, $sort_col, $sort_dir);
+print ass_sort_th('dentaire', img_picto('', 'fa-tooth', 'style="color:#0d6efd"') . ' <span style="color:#0d6efd">Dentaire</span>', $url_base, $sort_col, $sort_dir);
 print '</tr>';
 
 if (empty($tiers_list)) {
