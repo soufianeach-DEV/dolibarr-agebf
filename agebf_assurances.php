@@ -34,6 +34,29 @@ if ($res_cols) {
 	$db->free($res_cols);
 }
 
+// Vérification colonne motif_archive sur Tiers
+$has_motif_archive = false;
+$res_cols_soc = $db->query("SHOW COLUMNS FROM " . MAIN_DB_PREFIX . "societe_extrafields");
+if ($res_cols_soc) {
+	while ($col = $db->fetch_object($res_cols_soc)) {
+		if ($col->Field === 'motif_archive') $has_motif_archive = true;
+	}
+	$db->free($res_cols_soc);
+}
+
+// ── Action : définir le motif d'archivage d'un Tiers ─────────────────────────
+if ($action === 'set_motif' && !empty($_POST['token']) && $has_motif_archive) {
+	$soc_id = (int)GETPOST('soc_id', 'int');
+	$motif  = GETPOST('motif', 'aZ09');
+	if ($soc_id > 0 && in_array($motif, ['decede', 'retraite', 'demission', 'autre'])) {
+		$db->query("INSERT INTO " . MAIN_DB_PREFIX . "societe_extrafields (fk_object, motif_archive)"
+		          . " VALUES ($soc_id, '" . $db->escape($motif) . "')"
+		          . " ON DUPLICATE KEY UPDATE motif_archive = '" . $db->escape($motif) . "'");
+	}
+	header('Location: ' . $url_base . '?show_inactifs=1&motif_ok=1');
+	exit;
+}
+
 // ── Action : synchroniser assurcard → assurance_hospi ─────────────────────────
 if ($action === 'sync_assurcard' && !empty($_POST['token']) && $has_assurcard && $has_hospi) {
 	$sql_sync = "SELECT ex.fk_object AS cid FROM " . MAIN_DB_PREFIX . "socpeople_extrafields ex"
@@ -101,17 +124,22 @@ if (GETPOSTISSET('save_ok')) {
 	$nb = (int) GETPOST('save_ok', 'int');
 	$msg_ok = 'Enregistrement effectu&eacute; pour <b>' . $nb . '</b> contact(s).';
 }
+if (GETPOSTISSET('motif_ok')) {
+	$msg_ok = 'Motif d\'archivage mis &agrave; jour.';
+}
 
 // ── Chargement des données ────────────────────────────────────────────────────
 // Colonnes dynamiques selon existence
 $sel_hospi    = $has_hospi    ? 'COALESCE(ex.assurance_hospi, 0)'    : '0';
 $sel_dentaire = $has_dentaire ? 'COALESCE(ex.assurance_dentaire, 0)' : '0';
-$sel_assurcard = $has_assurcard ? "COALESCE(ex.assurcard, '')"       : "''";
+$sel_assurcard     = $has_assurcard     ? "COALESCE(ex.assurcard, '')"          : "''";
+$sel_motif_archive = $has_motif_archive ? "COALESCE(sex.motif_archive, '')"    : "''";
 
 $sql_data = "SELECT
     s.rowid    AS soc_id,
     s.nom      AS soc_nom,
     s.status   AS soc_status,
+    " . $sel_motif_archive . " AS motif_archive,
     c.rowid    AS cid,
     c.lastname,
     c.firstname,
@@ -120,12 +148,22 @@ $sql_data = "SELECT
     " . $sel_dentaire . " AS dentaire,
     " . $sel_assurcard . " AS assurcard
 FROM " . MAIN_DB_PREFIX . "societe s
+LEFT JOIN " . MAIN_DB_PREFIX . "societe_extrafields sex ON sex.fk_object = s.rowid
 JOIN " . MAIN_DB_PREFIX . "socpeople c ON c.fk_soc = s.rowid
 LEFT JOIN " . MAIN_DB_PREFIX . "socpeople_extrafields ex ON ex.fk_object = c.rowid
 WHERE s.entity = " . (int)$conf->entity . "
-  AND c.entity = " . (int)$conf->entity
+  AND c.entity = " . (int)$conf->entity . "
+  AND c.statut  = 1"
 . ($show_inactifs ? '' : " AND s.status = 1")
-. " ORDER BY s.status DESC, s.nom ASC, c.lastname ASC, c.firstname ASC";
+. " ORDER BY s.status DESC, s.nom ASC,
+    CASE c.poste
+        WHEN 'Employe'  THEN 1
+        WHEN 'Conjoint' THEN 2
+        WHEN 'Fils'     THEN 3
+        WHEN 'Fille'    THEN 3
+        ELSE 9
+    END ASC,
+    c.lastname ASC, c.firstname ASC";
 
 $resql = $db->query($sql_data);
 if (!$resql) {
@@ -145,7 +183,7 @@ $nb_tiers_inactifs = 0;
 while ($obj = $db->fetch_object($resql)) {
 	$sid = (int)$obj->soc_id;
 	if (!isset($tiers_list[$sid])) {
-		$tiers_list[$sid] = (object)['soc_id' => $sid, 'soc_nom' => $obj->soc_nom, 'soc_status' => (int)$obj->soc_status, 'contacts' => []];
+		$tiers_list[$sid] = (object)['soc_id' => $sid, 'soc_nom' => $obj->soc_nom, 'soc_status' => (int)$obj->soc_status, 'motif_archive' => $obj->motif_archive, 'contacts' => []];
 	}
 	$obj->hospi    = (int)$obj->hospi;
 	$obj->dentaire = (int)$obj->dentaire;
@@ -304,17 +342,48 @@ foreach ($tiers_list as $t) {
 	}
 
 	$is_inactif  = ($t->soc_status === 0);
-	$row_opacity = $is_inactif ? ' style="opacity:0.55"' : '';
+	$row_opacity = $is_inactif ? ' style="opacity:0.6"' : '';
+	$motif_val   = isset($t->motif_archive) ? $t->motif_archive : '';
+	// [icône html, libellé, couleur bg, couleur texte]
+	$motifs_map = [
+		'decede'    => ['&#9760;',  'D&eacute;c&eacute;d&eacute;(e)',       '#212529', '#f8f9fa'],
+		'retraite'  => ['&#127958;','Retrait&eacute;(e)',                    '#2c5f7a', '#e9f4fb'],
+		'demission' => ['&#128694;','D&eacute;missionn&eacute;(e)',          '#923f00', '#fff3e0'],
+		'autre'     => ['&#128193;','Archiv&eacute;',                        '#4a4a4a', '#e9ecef'],
+	];
+	$motif_info = isset($motifs_map[$motif_val]) ? $motifs_map[$motif_val] : $motifs_map['autre'];
 	$badge_inactif = $is_inactif
-		? ' <span title="Tiers archiv&eacute; / D&eacute;c&eacute;d&eacute;" style="font-size:1em;cursor:default">&#9760;</span>'
-		  . ' <span style="font-size:0.72em;background:#6c757d;color:#fff;padding:1px 6px;border-radius:8px;vertical-align:middle">Archiv&eacute;</span>'
+		? ' <span style="display:inline-block;font-size:0.74em;background:' . $motif_info[2] . ';color:' . $motif_info[3] . ';padding:2px 9px;border-radius:10px;vertical-align:middle;font-weight:600;letter-spacing:0.01em">'
+		  . $motif_info[0] . '&nbsp;' . $motif_info[1] . '</span>'
 		: '';
 
 	print '<tr class="oddeven"' . $row_opacity . '>';
 	print '<td style="text-align:center;padding:6px 4px">';
 	print '<button type="button" id="ass-btn-' . $sid . '" class="ass-toggle-btn" onclick="assToggle(' . $sid . ')" title="Voir les contacts">&#9658;</button>';
 	print '</td>';
-	print '<td><a href="' . DOL_URL_ROOT . '/societe/card.php?socid=' . $sid . '" style="font-weight:600' . ($is_inactif ? ';color:#6c757d' : '') . '">' . dol_escape_htmltag($t->soc_nom) . '</a>' . $badge_inactif . '</td>';
+	print '<td>';
+	print '<a href="' . DOL_URL_ROOT . '/societe/card.php?socid=' . $sid . '" style="font-weight:600' . ($is_inactif ? ';color:#6c757d' : '') . '">' . dol_escape_htmltag($t->soc_nom) . '</a>';
+	print $badge_inactif;
+	if ($is_inactif && $has_motif_archive) {
+		$motif_select_opts = [
+			'decede'    => '&#9760;&nbsp;D&eacute;c&eacute;d&eacute;(e)',
+			'retraite'  => '&#127958;&nbsp;Retrait&eacute;(e)',
+			'demission' => '&#128694;&nbsp;D&eacute;missionn&eacute;(e)',
+			'autre'     => '&#128193;&nbsp;Autre',
+		];
+		print ' <form method="POST" action="' . $url_base . '" style="display:inline-block;margin-left:5px;vertical-align:middle">';
+		print '<input type="hidden" name="token"  value="' . newToken() . '">';
+		print '<input type="hidden" name="action" value="set_motif">';
+		print '<input type="hidden" name="soc_id" value="' . $sid . '">';
+		print '<select name="motif" style="font-size:0.73em;padding:1px 3px;border-radius:4px;border:1px solid #bbb;color:#444;background:#fff;vertical-align:middle">';
+		foreach ($motif_select_opts as $val => $lbl) {
+			print '<option value="' . $val . '"' . ($motif_val === $val ? ' selected' : '') . '>' . $lbl . '</option>';
+		}
+		print '</select>';
+		print '&nbsp;<button type="submit" title="Appliquer" style="font-size:0.73em;padding:1px 6px;border-radius:4px;border:1px solid #bbb;background:#f8f9fa;cursor:pointer;color:#333;vertical-align:middle">&#10003;</button>';
+		print '</form>';
+	}
+	print '</td>';
 	print '<td class="center"><span style="font-weight:bold">' . $nb_c . '</span></td>';
 	print '<td class="center">';
 	if ($nb_hospi > 0) {
@@ -349,6 +418,20 @@ foreach ($tiers_list as $t) {
 	foreach ($t->contacts as $c) {
 		$cid = (int)$c->cid;
 
+		// Badge rôle famille
+		$poste_lc = strtolower(trim($c->poste));
+		if ($poste_lc === 'employe') {
+			$role_badge = '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#495057;color:#fff;font-size:11px;font-weight:bold">&#128084; Employ&eacute;(e)</span>';
+		} elseif ($poste_lc === 'conjoint') {
+			$role_badge = '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#e91e8c;color:#fff;font-size:11px;font-weight:bold">&#128145; Conjoint(e)</span>';
+		} elseif ($poste_lc === 'fils') {
+			$role_badge = '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#0d6efd;color:#fff;font-size:11px">&#128102; Fils</span>';
+		} elseif ($poste_lc === 'fille') {
+			$role_badge = '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#d63384;color:#fff;font-size:11px">&#128103; Fille</span>';
+		} else {
+			$role_badge = '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#aaa;color:#fff;font-size:11px">' . dol_escape_htmltag($c->poste) . '</span>';
+		}
+
 		// Badge assurcard
 		$assurcard_cell = ($c->assurcard !== '')
 			? '<span style="font-family:monospace;background:#e8f5e9;color:#1a7f37;padding:1px 6px;border-radius:4px;font-weight:600">' . dol_escape_htmltag($c->assurcard) . '</span>'
@@ -357,11 +440,14 @@ foreach ($tiers_list as $t) {
 		// Highlight: a un assurcard mais hospi pas coché
 		$row_style = ($c->assurcard !== '' && !$c->hospi) ? ' style="background:#fffbf0"' : '';
 
+		// Séparateur visuel avant les enfants
+		$separator = ($poste_lc === 'fils' || $poste_lc === 'fille') ? ' style="border-top:2px solid #dee2e6;border-bottom:1px solid #eee"' : ' style="border-bottom:1px solid #eee"';
+
 		print '<input type="hidden" name="all_contacts[]" value="' . $cid . '">';
-		print '<tr style="border-bottom:1px solid #eee"' . $row_style . '>';
-		print '<td style="padding:5px 8px"><a href="' . DOL_URL_ROOT . '/contact/card.php?id=' . $cid . '" style="color:#333">' . dol_escape_htmltag($c->lastname) . '</a></td>';
+		print '<tr' . (($c->assurcard !== '' && !$c->hospi) ? ' style="background:#fffbf0;' . ltrim($separator, ' style="') : $separator) . '>';
+		print '<td style="padding:5px 8px"><a href="' . DOL_URL_ROOT . '/contact/card.php?id=' . $cid . '" style="color:#333;font-weight:' . ($poste_lc === 'employe' ? 'bold' : 'normal') . '">' . dol_escape_htmltag($c->lastname) . '</a></td>';
 		print '<td style="padding:5px 8px">' . dol_escape_htmltag($c->firstname) . '</td>';
-		print '<td style="padding:5px 8px;color:#666">' . dol_escape_htmltag($c->poste) . '</td>';
+		print '<td style="padding:5px 8px">' . $role_badge . '</td>';
 		print '<td style="padding:5px 8px">' . $assurcard_cell . '</td>';
 		print '<td style="padding:5px 8px;text-align:center">';
 		if ($has_hospi) {

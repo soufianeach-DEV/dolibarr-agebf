@@ -72,7 +72,7 @@ class modAgeBF extends DolibarrModules
 		$this->editor_url = '';
 
 		// Possible values for version are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated', 'experimental_deprecated' or a version string like 'x.y.z'
-		$this->version = '5.2';
+		$this->version = '5.3';
 		// Url to the file with your last numberversion of this module
 		//$this->url_last_version = 'http://www.example.com/versionmodule.txt';
 
@@ -547,6 +547,7 @@ class modAgeBF extends DolibarrModules
 		// Sur les Tiers (societe)
 		$extrafields->addExtraField('fete_enfants',      "Fête des enfants",        'boolean', 1, '',  'societe', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
 		$extrafields->addExtraField('nb_enfants_invites',"Nb enfants invités (< 16)",'int',    2, 3,   'societe', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+		$extrafields->addExtraField('motif_archive',     "Motif archivage",         'varchar', 3, 20,  'societe', 0, 0, '', '', 0, '', 0, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
 
 		// Permissions
 		$this->remove($options);

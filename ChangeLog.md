@@ -1,5 +1,13 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 5.3 (2026-06-15)
+
+### Corrections et améliorations
+
+- **feat** : page Assurances — motif d'archivage par Tiers inactif : badge coloré distinctif selon le motif (`⚰ Décédé(e)` gris foncé / `🏖 Retraité(e)` bleu-gris / `🚶 Démissionné(e)` orange / `📁 Autre` gris) ; mini-formulaire inline (select + bouton ✓) pour définir ou modifier le motif directement depuis la page sans quitter l'écran
+- **feat** : nouvel extrafield `motif_archive` (varchar 20) sur les Tiers (`llx_societe_extrafields`) — créé automatiquement à l'activation du module
+- ZIP : `module_agebf-5.3.zip`
+
 ## 5.2 (2026-06-15)
 
 ### Corrections et améliorations
