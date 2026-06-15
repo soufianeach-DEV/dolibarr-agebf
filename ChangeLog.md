@@ -1,5 +1,18 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 6.1 (2026-06-15)
+
+### Nouvelles fonctionnalités
+
+- **feat** : page Assurances — **vue plate automatique** quand des filtres sont actifs : au lieu de l'accordéon (1 ligne par Tiers dépliable), la page bascule en tableau plat (1 ligne par contact) avec les colonnes Tiers / Nom / Prénom / Poste / N° Assurcard / Hospi. / Dentaire — même style que la page Fête des enfants
+- **feat** : page Assurances — **filtre au niveau contact** dans la vue plate : un filtre "Dentaire seulement" n'affiche que les contacts ayant dentaire coché (et non tous les contacts des Tiers concernés)
+- **feat** : boutons "Déplier tout / Replier tout" masqués automatiquement en vue plate (inutiles sans accordéon)
+
+### Corrections
+
+- **fix** : filtres assurance/assurcard opèrent désormais à deux niveaux — niveau Tiers (pré-filtre) et niveau contact individuel (vue plate), évitant l'affichage de contacts ne correspondant pas au critère sélectionné
+- ZIP : `module_agebf-6.1.zip`
+
 ## 5.3 (2026-06-15)
 
 ### Nouvelles fonctionnalités

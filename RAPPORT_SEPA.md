@@ -2,7 +2,7 @@
 
 **Projet :** Dolibarr ERP/CRM — module personnalisé « AgeBF / Helpy » pour Bruxelles Formation  
 **Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
-**Version livrée :** 5.3  
+**Version livrée :** 6.1  
 **Date de mise à jour :** 15 juin 2026
 
 ---
@@ -67,6 +67,7 @@ Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mai
 - **Règle décès** : Tiers décédé toujours visible (grisé, en bas de liste) ; sa famille (Conjoint/Fils/Fille) reste active et ses assurances restent éditables. Contact Employé(e) du défunt : cases remplacées par `—`.
 - **Barre de filtres** : recherche par nom, filtre par type d'assurance (Hospi./Dentaire/Les deux/Aucune), filtre Assurcard (avec/sans/anomalie), filtre statut (actifs/archivés).
 - **Tri colonnes** : clic sur Tiers/Contacts/Hospi./Dentaire pour trier ASC ou DESC.
+- **Vue plate automatique** : quand des filtres sont actifs, bascule en tableau plat (1 ligne par contact) avec filtre individuel par contact — colonnes : Tiers / Nom / Prénom / Poste / N° Assurcard / Hospi. / Dentaire. Sans filtre : vue accordéon classique.
 - Bandeau de statistiques : nb Tiers, contacts, Hospi., Dentaire, Assurcard, Assurcard sans Hospi.
 
 ---
@@ -86,7 +87,7 @@ Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mai
 
 ---
 
-## 4. État d'avancement (v5.2)
+## 4. État d'avancement (v6.1)
 
 | Fonctionnalité | État |
 |---|---|
@@ -101,6 +102,7 @@ Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mai
 | Assurances — Motif archivage (Décédé/Retraité/Démissionné) | ✅ Livré (v5.3) |
 | Assurances — Règle décès : famille active, employé bloqué | ✅ Livré (v5.3) |
 | Assurances — Filtres + tri colonnes | ✅ Livré (v5.3) |
+| Assurances — Vue plate (filtre contact-niveau) quand filtres actifs | ✅ Livré (v6.1) |
 | Tri cliquable sur toutes les colonnes (les deux pages) | ✅ Livré |
 | Test de génération SEPA en navigateur | À valider en production |
 
@@ -127,6 +129,7 @@ Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mai
 | Tiers décédé invisible malgré « Afficher les archivés » | Contacts famille mis à `statut=0` → JOIN `c.statut=1` excluait le Tiers entier | Famille réactivée (`statut=1`) ; Tiers visible en permanence (grisé) |
 | Cases assurance cochables pour un employé décédé | Aucune vérification du statut du Tiers sur le contact Employé(e) | Cases remplacées par `—` si `poste=Employe` et `soc_status=0` ; données vidées en DB |
 | `motif_archive` dans table Dolibarr standard | Premier jet dans `llx_societe_extrafields` via `addExtraField` | Déplacé dans table dédiée `llx_agebf_tiers_archive` hors Dolibarr |
+| Filtres vue plate affichaient tous les contacts du Tiers | Filtre PHP opérait au niveau Tiers (exclut le Tiers entier), pas au niveau contact | Filtre à deux niveaux : Tiers (pré-filtre) + contact individuel dans la boucle vue plate |
 
 ---
 

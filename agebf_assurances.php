@@ -351,6 +351,9 @@ foreach ($stats_disp as $st) {
 }
 print '</div>';
 
+// $has_filter défini ici pour être disponible dans toute la section HTML
+$has_filter = ($search_nom || $filter_assurance || $filter_assurcard || $filter_statut);
+
 // ── Boutons globaux ───────────────────────────────────────────────────────────
 print '<div class="fichecenter">';
 print '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">';
@@ -368,8 +371,11 @@ if ($has_assurcard && $has_hospi && $stats_hospi_missing > 0) {
 	print '<span style="color:#28a745;font-size:0.9em">' . img_picto('', 'fa-check-circle', '') . ' Tous les contacts avec assurcard ont d&eacute;j&agrave; Hospi. coch&eacute;e.</span>';
 }
 
-print '<button type="button" onclick="assToggleAll(true)" style="padding:6px 12px;background:#6c757d;color:#fff;border:none;border-radius:3px;font-size:0.85em;cursor:pointer">D&eacute;plier tout</button>';
-print '<button type="button" onclick="assToggleAll(false)" style="padding:6px 12px;background:#6c757d;color:#fff;border:none;border-radius:3px;font-size:0.85em;cursor:pointer">Replier tout</button>';
+// Boutons déplier/replier uniquement en vue accordéon
+if (!$has_filter) {
+	print '<button type="button" onclick="assToggleAll(true)" style="padding:6px 12px;background:#6c757d;color:#fff;border:none;border-radius:3px;font-size:0.85em;cursor:pointer">D&eacute;plier tout</button>';
+	print '<button type="button" onclick="assToggleAll(false)" style="padding:6px 12px;background:#6c757d;color:#fff;border:none;border-radius:3px;font-size:0.85em;cursor:pointer">Replier tout</button>';
+}
 
 // Info tiers archivés toujours visibles
 if ($nb_tiers_inactifs > 0) {
@@ -380,7 +386,6 @@ if ($nb_tiers_inactifs > 0) {
 print '</div>';
 
 // ── Barre de filtres ──────────────────────────────────────────────────────────
-$has_filter = ($search_nom || $filter_assurance || $filter_assurcard || $filter_statut);
 print '<form method="GET" action="' . $url_base . '" style="margin-bottom:12px">';
 // Préserver sort
 if ($sort_col) { print '<input type="hidden" name="sort"     value="' . dol_escape_htmltag($sort_col) . '">'; }
@@ -428,172 +433,199 @@ foreach (['search_nom' => $search_nom, 'filter_assurance' => $filter_assurance, 
 	if ($v !== '') print '<input type="hidden" name="' . $k . '" value="' . dol_escape_htmltag($v) . '">';
 }
 
-print '<table class="noborder centpercent">';
-print '<tr class="liste_titre">';
-print '<th style="width:28px"></th>';
-print ass_sort_th('nom',      'Tiers',    $url_base, $sort_col, $sort_dir, 'text-align:left');
-print ass_sort_th('contacts', 'Contacts', $url_base, $sort_col, $sort_dir);
-print ass_sort_th('hospi',    img_picto('', 'fa-heart', 'style="color:#6f42c1"') . ' <span style="color:#6f42c1">Hospi.</span>', $url_base, $sort_col, $sort_dir);
-print ass_sort_th('dentaire', img_picto('', 'fa-tooth', 'style="color:#0d6efd"') . ' <span style="color:#0d6efd">Dentaire</span>', $url_base, $sort_col, $sort_dir);
-print '</tr>';
+// ── Fonction helper : rendu d'une ligne contact (partagée vue plate + accordéon) ──
+function ass_contact_row(object $c, bool $is_inactif, bool $has_hospi, bool $has_dentaire, bool $flat = false): void {
+	$cid      = (int)$c->cid;
+	$poste_lc = strtolower(trim($c->poste));
+	$is_deceased_employee = ($is_inactif && $poste_lc === 'employe');
 
-if (empty($tiers_list)) {
-	print '<tr class="oddeven"><td colspan="5" class="center opacitymedium" style="padding:20px">Aucun tiers avec des contacts.</td></tr>';
+	$badges = [
+		'employe'  => '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#495057;color:#fff;font-size:11px;font-weight:bold">&#128084; Employ&eacute;(e)</span>',
+		'conjoint' => '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#e91e8c;color:#fff;font-size:11px;font-weight:bold">&#128145; Conjoint(e)</span>',
+		'fils'     => '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#0d6efd;color:#fff;font-size:11px">&#128102; Fils</span>',
+		'fille'    => '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#d63384;color:#fff;font-size:11px">&#128103; Fille</span>',
+	];
+	$role_badge = $badges[$poste_lc] ?? '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#aaa;color:#fff;font-size:11px">' . dol_escape_htmltag($c->poste) . '</span>';
+
+	$assurcard_cell = ($c->assurcard !== '')
+		? '<span style="font-family:monospace;background:#e8f5e9;color:#1a7f37;padding:1px 6px;border-radius:4px;font-weight:600">' . dol_escape_htmltag($c->assurcard) . '</span>'
+		: '<span style="color:#aaa">&mdash;</span>';
+
+	$warn    = ($c->assurcard !== '' && !$c->hospi && !$is_deceased_employee);
+	$row_bg  = $warn ? 'background:#fffbf0;' : '';
+	$opacity = ($flat && $is_inactif) ? 'opacity:0.65;' : '';
+
+	if ($flat) {
+		$border = ($poste_lc === 'fils' || $poste_lc === 'fille') ? 'border-top:2px solid #dee2e6;' : '';
+		print '<tr class="oddeven" style="' . $row_bg . $opacity . $border . '">';
+	} else {
+		$sep = ($poste_lc === 'fils' || $poste_lc === 'fille') ? 'border-top:2px solid #dee2e6;border-bottom:1px solid #eee' : 'border-bottom:1px solid #eee';
+		print '<tr style="' . $row_bg . $sep . '">';
+	}
+
+	if (!$is_deceased_employee) {
+		print '<input type="hidden" name="all_contacts[]" value="' . $cid . '">';
+	}
+
+	print '<td style="padding:5px 8px"><a href="' . DOL_URL_ROOT . '/contact/card.php?id=' . $cid . '" style="color:#333;font-weight:' . ($poste_lc === 'employe' ? 'bold' : 'normal') . '">' . dol_escape_htmltag($c->lastname) . '</a></td>';
+	print '<td style="padding:5px 8px">' . dol_escape_htmltag($c->firstname) . '</td>';
+	print '<td style="padding:5px 8px">' . $role_badge . '</td>';
+	print '<td style="padding:5px 8px">' . $assurcard_cell . '</td>';
+	print '<td style="padding:5px 8px;text-align:center">';
+	if ($is_deceased_employee)      print '<span style="color:#aaa" title="Employ&eacute; d&eacute;c&eacute;d&eacute;">—</span>';
+	elseif ($has_hospi)             print '<input type="checkbox" class="ass-check" name="hospi[' . $cid . ']" value="1"' . ($c->hospi ? ' checked' : '') . '>';
+	else                            print '<span style="color:#aaa">—</span>';
+	print '</td>';
+	print '<td style="padding:5px 8px;text-align:center">';
+	if ($is_deceased_employee)      print '<span style="color:#aaa" title="Employ&eacute; d&eacute;c&eacute;d&eacute;">—</span>';
+	elseif ($has_dentaire)          print '<input type="checkbox" class="ass-check" name="dentaire[' . $cid . ']" value="1"' . ($c->dentaire ? ' checked' : '') . '>';
+	else                            print '<span style="color:#aaa">—</span>';
+	print '</td>';
+	print '</tr>';
 }
 
-foreach ($tiers_list as $t) {
-	$sid = (int)$t->soc_id;
-	$nb_c = count($t->contacts);
-
-	// Comptage pour ce Tiers
-	$nb_hospi    = 0;
-	$nb_dentaire = 0;
-	foreach ($t->contacts as $c) {
-		if ($c->hospi)    $nb_hospi++;
-		if ($c->dentaire) $nb_dentaire++;
-	}
-
-	$is_inactif  = ($t->soc_status === 0);
-	$row_opacity = $is_inactif ? ' style="opacity:0.6"' : '';
-	$motif_val   = isset($t->motif_archive) ? $t->motif_archive : '';
-	// [icône html, libellé, couleur bg, couleur texte]
+// ── Fonction helper : badge + select motif (Tiers archivé) ────────────────────
+function ass_tiers_badge_motif(object $t, string $url_base): void {
 	$motifs_map = [
-		'decede'    => ['&#9760;',  'D&eacute;c&eacute;d&eacute;(e)',       '#212529', '#f8f9fa'],
-		'retraite'  => ['&#127958;','Retrait&eacute;(e)',                    '#2c5f7a', '#e9f4fb'],
-		'demission' => ['&#128694;','D&eacute;missionn&eacute;(e)',          '#923f00', '#fff3e0'],
-		'autre'     => ['&#128193;','Archiv&eacute;',                        '#4a4a4a', '#e9ecef'],
+		'decede'    => ['&#9760;',   'D&eacute;c&eacute;d&eacute;(e)',     '#212529', '#f8f9fa'],
+		'retraite'  => ['&#127958;', 'Retrait&eacute;(e)',                  '#2c5f7a', '#e9f4fb'],
+		'demission' => ['&#128694;', 'D&eacute;missionn&eacute;(e)',        '#923f00', '#fff3e0'],
+		'autre'     => ['&#128193;', 'Archiv&eacute;',                      '#4a4a4a', '#e9ecef'],
 	];
-	$motif_info = isset($motifs_map[$motif_val]) ? $motifs_map[$motif_val] : $motifs_map['autre'];
-	$badge_inactif = $is_inactif
-		? ' <span style="display:inline-block;font-size:0.74em;background:' . $motif_info[2] . ';color:' . $motif_info[3] . ';padding:2px 9px;border-radius:10px;vertical-align:middle;font-weight:600;letter-spacing:0.01em">'
-		  . $motif_info[0] . '&nbsp;' . $motif_info[1] . '</span>'
-		: '';
+	$motif_val  = $t->motif_archive ?? '';
+	$mi = $motifs_map[$motif_val] ?? $motifs_map['autre'];
+	print ' <span style="display:inline-block;font-size:0.74em;background:' . $mi[2] . ';color:' . $mi[3] . ';padding:2px 9px;border-radius:10px;vertical-align:middle;font-weight:600">' . $mi[0] . '&nbsp;' . $mi[1] . '</span>';
+	// Select motif inline
+	print ' <form method="POST" action="' . $url_base . '" style="display:inline-block;margin-left:4px;vertical-align:middle">';
+	print '<input type="hidden" name="token"  value="' . newToken() . '">';
+	print '<input type="hidden" name="action" value="set_motif">';
+	print '<input type="hidden" name="soc_id" value="' . (int)$t->soc_id . '">';
+	print '<select name="motif" style="font-size:0.73em;padding:1px 3px;border-radius:4px;border:1px solid #bbb;color:#444;background:#fff;vertical-align:middle">';
+	foreach (['decede' => '&#9760;&nbsp;D&eacute;c&eacute;d&eacute;(e)', 'retraite' => '&#127958;&nbsp;Retrait&eacute;(e)', 'demission' => '&#128694;&nbsp;D&eacute;missionn&eacute;(e)', 'autre' => '&#128193;&nbsp;Autre'] as $val => $lbl) {
+		print '<option value="' . $val . '"' . ($motif_val === $val ? ' selected' : '') . '>' . $lbl . '</option>';
+	}
+	print '</select>&nbsp;<button type="submit" title="Appliquer" style="font-size:0.73em;padding:1px 6px;border-radius:4px;border:1px solid #bbb;background:#f8f9fa;cursor:pointer;color:#333;vertical-align:middle">&#10003;</button>';
+	print '</form>';
+}
 
-	print '<tr class="oddeven"' . $row_opacity . '>';
-	print '<td style="text-align:center;padding:6px 4px">';
-	print '<button type="button" id="ass-btn-' . $sid . '" class="ass-toggle-btn" onclick="assToggle(' . $sid . ')" title="Voir les contacts">&#9658;</button>';
-	print '</td>';
-	print '<td>';
-	print '<a href="' . DOL_URL_ROOT . '/societe/card.php?socid=' . $sid . '" style="font-weight:600' . ($is_inactif ? ';color:#6c757d' : '') . '">' . dol_escape_htmltag($t->soc_nom) . '</a>';
-	print $badge_inactif;
-	if ($is_inactif) {
-		$motif_select_opts = [
-			'decede'    => '&#9760;&nbsp;D&eacute;c&eacute;d&eacute;(e)',
-			'retraite'  => '&#127958;&nbsp;Retrait&eacute;(e)',
-			'demission' => '&#128694;&nbsp;D&eacute;missionn&eacute;(e)',
-			'autre'     => '&#128193;&nbsp;Autre',
-		];
-		print ' <form method="POST" action="' . $url_base . '" style="display:inline-block;margin-left:5px;vertical-align:middle">';
-		print '<input type="hidden" name="token"  value="' . newToken() . '">';
-		print '<input type="hidden" name="action" value="set_motif">';
-		print '<input type="hidden" name="soc_id" value="' . $sid . '">';
-		print '<select name="motif" style="font-size:0.73em;padding:1px 3px;border-radius:4px;border:1px solid #bbb;color:#444;background:#fff;vertical-align:middle">';
-		foreach ($motif_select_opts as $val => $lbl) {
-			print '<option value="' . $val . '"' . ($motif_val === $val ? ' selected' : '') . '>' . $lbl . '</option>';
-		}
-		print '</select>';
-		print '&nbsp;<button type="submit" title="Appliquer" style="font-size:0.73em;padding:1px 6px;border-radius:4px;border:1px solid #bbb;background:#f8f9fa;cursor:pointer;color:#333;vertical-align:middle">&#10003;</button>';
-		print '</form>';
-	}
-	print '</td>';
-	print '<td class="center"><span style="font-weight:bold">' . $nb_c . '</span></td>';
-	print '<td class="center">';
-	if ($nb_hospi > 0) {
-		print '<span style="color:#6f42c1;font-weight:bold">' . img_picto('', 'fa-check-circle', '') . ' ' . $nb_hospi . '/' . $nb_c . '</span>';
-	} else {
-		print '<span style="color:#aaa">' . img_picto('', 'fa-times-circle', '') . ' 0/' . $nb_c . '</span>';
-	}
-	print '</td>';
-	print '<td class="center">';
-	if ($nb_dentaire > 0) {
-		print '<span style="color:#0d6efd;font-weight:bold">' . img_picto('', 'fa-check-circle', '') . ' ' . $nb_dentaire . '/' . $nb_c . '</span>';
-	} else {
-		print '<span style="color:#aaa">' . img_picto('', 'fa-times-circle', '') . ' 0/' . $nb_c . '</span>';
-	}
-	print '</td>';
+if ($has_filter) {
+	// ════════════════════════════════════════════════════════════════════════════
+	// VUE PLATE (filtres actifs) — 1 ligne par contact, style Fête des enfants
+	// ════════════════════════════════════════════════════════════════════════════
+	print '<table class="noborder centpercent">';
+	print '<tr class="liste_titre">';
+	print ass_sort_th('nom', 'Tiers', $url_base, $sort_col, $sort_dir, 'text-align:left');
+	print '<th>Nom</th>';
+	print '<th>Pr&eacute;nom</th>';
+	print '<th>Poste</th>';
+	print '<th>N&deg; Assurcard</th>';
+	print '<th class="center" style="color:#6f42c1">' . img_picto('', 'fa-heart', '') . ' Hospi.</th>';
+	print '<th class="center" style="color:#0d6efd">' . img_picto('', 'fa-tooth', '') . ' Dentaire</th>';
 	print '</tr>';
 
-	// ── Détail contacts ────────────────────────────────────────────────────────
-	print '<tr class="ass-detail-row ass-det-' . $sid . '">';
-	print '<td colspan="5" style="padding:0 16px 12px 36px">';
-	print '<div class="ass-detail-inner">';
-	print '<table style="width:100%;border-collapse:collapse;font-size:0.9em">';
-	print '<tr style="color:#666;border-bottom:1px solid #ddd">';
-	print '<th style="text-align:left;padding:4px 8px;font-weight:600">Nom</th>';
-	print '<th style="text-align:left;padding:4px 8px;font-weight:600">Pr&eacute;nom</th>';
-	print '<th style="text-align:left;padding:4px 8px;font-weight:600">Poste</th>';
-	print '<th style="text-align:left;padding:4px 8px;font-weight:600">N&deg; Assurcard</th>';
-	print '<th style="text-align:center;padding:4px 8px;font-weight:600;color:#6f42c1">Hospi.</th>';
-	print '<th style="text-align:center;padding:4px 8px;font-weight:600;color:#0d6efd">Dentaire</th>';
+	$nb_flat = 0;
+	foreach ($tiers_list as $t) {
+		$is_inactif = ($t->soc_status === 0);
+		foreach ($t->contacts as $c) {
+			// ── Filtre contact-niveau (vue plate) ───────────────────────────────
+			if ($filter_assurance === 'hospi'    && !$c->hospi)                             continue;
+			if ($filter_assurance === 'dentaire' && !$c->dentaire)                          continue;
+			if ($filter_assurance === 'both'     && !($c->hospi && $c->dentaire))           continue;
+			if ($filter_assurance === 'none'     && ($c->hospi || $c->dentaire))            continue;
+			if ($filter_assurcard === 'with'     && $c->assurcard === '')                   continue;
+			if ($filter_assurcard === 'without'  && $c->assurcard !== '')                   continue;
+			if ($filter_assurcard === 'anomalie' && !($c->assurcard !== '' && !$c->hospi))  continue;
+			// ────────────────────────────────────────────────────────────────────
+			$nb_flat++;
+			// Injecter la colonne Tiers dans la ligne contact
+			$poste_lc = strtolower(trim($c->poste));
+			$is_deceased_employee = ($is_inactif && $poste_lc === 'employe');
+			$warn = ($c->assurcard !== '' && !$c->hospi && !$is_deceased_employee);
+			$opacity = $is_inactif ? 'opacity:0.65;' : '';
+			print '<tr class="oddeven" style="' . ($warn ? 'background:#fffbf0;' : '') . $opacity . '">';
+			// Colonne Tiers
+			print '<td style="padding:5px 8px;white-space:nowrap">';
+			print '<a href="' . DOL_URL_ROOT . '/societe/card.php?socid=' . (int)$t->soc_id . '" style="font-weight:600' . ($is_inactif ? ';color:#6c757d' : '') . '">' . dol_escape_htmltag($t->soc_nom) . '</a>';
+			if ($is_inactif) ass_tiers_badge_motif($t, $url_base);
+			print '</td>';
+			// Colonnes contact (sans la cellule Tiers)
+			$cid = (int)$c->cid;
+			$badges = ['employe'=>'<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#495057;color:#fff;font-size:11px;font-weight:bold">&#128084; Employ&eacute;(e)</span>','conjoint'=>'<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#e91e8c;color:#fff;font-size:11px;font-weight:bold">&#128145; Conjoint(e)</span>','fils'=>'<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#0d6efd;color:#fff;font-size:11px">&#128102; Fils</span>','fille'=>'<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#d63384;color:#fff;font-size:11px">&#128103; Fille</span>'];
+			$role_badge = $badges[$poste_lc] ?? '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#aaa;color:#fff;font-size:11px">' . dol_escape_htmltag($c->poste) . '</span>';
+			$assurcard_cell = $c->assurcard !== '' ? '<span style="font-family:monospace;background:#e8f5e9;color:#1a7f37;padding:1px 6px;border-radius:4px;font-weight:600">' . dol_escape_htmltag($c->assurcard) . '</span>' : '<span style="color:#aaa">&mdash;</span>';
+			if (!$is_deceased_employee) print '<input type="hidden" name="all_contacts[]" value="' . $cid . '">';
+			print '<td style="padding:5px 8px"><a href="' . DOL_URL_ROOT . '/contact/card.php?id=' . $cid . '" style="color:#333;font-weight:' . ($poste_lc === 'employe' ? 'bold' : 'normal') . '">' . dol_escape_htmltag($c->lastname) . '</a></td>';
+			print '<td style="padding:5px 8px">' . dol_escape_htmltag($c->firstname) . '</td>';
+			print '<td style="padding:5px 8px">' . $role_badge . '</td>';
+			print '<td style="padding:5px 8px">' . $assurcard_cell . '</td>';
+			print '<td style="padding:5px 8px;text-align:center">';
+			if ($is_deceased_employee) print '<span style="color:#aaa">—</span>';
+			elseif ($has_hospi)        print '<input type="checkbox" class="ass-check" name="hospi[' . $cid . ']" value="1"' . ($c->hospi ? ' checked' : '') . '>';
+			else                       print '<span style="color:#aaa">—</span>';
+			print '</td>';
+			print '<td style="padding:5px 8px;text-align:center">';
+			if ($is_deceased_employee) print '<span style="color:#aaa">—</span>';
+			elseif ($has_dentaire)     print '<input type="checkbox" class="ass-check" name="dentaire[' . $cid . ']" value="1"' . ($c->dentaire ? ' checked' : '') . '>';
+			else                       print '<span style="color:#aaa">—</span>';
+			print '</td>';
+			print '</tr>';
+		}
+	}
+	if ($nb_flat === 0) {
+		print '<tr class="oddeven"><td colspan="7" class="center opacitymedium" style="padding:20px">Aucun r&eacute;sultat pour ces filtres.</td></tr>';
+	}
+	print '</table>';
+
+} else {
+	// ════════════════════════════════════════════════════════════════════════════
+	// VUE ACCORDÉON (pas de filtre actif) — 1 ligne par Tiers, dépliable
+	// ════════════════════════════════════════════════════════════════════════════
+	print '<table class="noborder centpercent">';
+	print '<tr class="liste_titre">';
+	print '<th style="width:28px"></th>';
+	print ass_sort_th('nom',      'Tiers',    $url_base, $sort_col, $sort_dir, 'text-align:left');
+	print ass_sort_th('contacts', 'Contacts', $url_base, $sort_col, $sort_dir);
+	print ass_sort_th('hospi',    img_picto('', 'fa-heart', 'style="color:#6f42c1"') . ' <span style="color:#6f42c1">Hospi.</span>', $url_base, $sort_col, $sort_dir);
+	print ass_sort_th('dentaire', img_picto('', 'fa-tooth', 'style="color:#0d6efd"') . ' <span style="color:#0d6efd">Dentaire</span>', $url_base, $sort_col, $sort_dir);
 	print '</tr>';
 
-	foreach ($t->contacts as $c) {
-		$cid = (int)$c->cid;
+	if (empty($tiers_list)) {
+		print '<tr class="oddeven"><td colspan="5" class="center opacitymedium" style="padding:20px">Aucun tiers avec des contacts.</td></tr>';
+	}
 
-		// Badge rôle famille
-		$poste_lc = strtolower(trim($c->poste));
-		if ($poste_lc === 'employe') {
-			$role_badge = '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#495057;color:#fff;font-size:11px;font-weight:bold">&#128084; Employ&eacute;(e)</span>';
-		} elseif ($poste_lc === 'conjoint') {
-			$role_badge = '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#e91e8c;color:#fff;font-size:11px;font-weight:bold">&#128145; Conjoint(e)</span>';
-		} elseif ($poste_lc === 'fils') {
-			$role_badge = '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#0d6efd;color:#fff;font-size:11px">&#128102; Fils</span>';
-		} elseif ($poste_lc === 'fille') {
-			$role_badge = '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#d63384;color:#fff;font-size:11px">&#128103; Fille</span>';
-		} else {
-			$role_badge = '<span style="display:inline-block;padding:1px 7px;border-radius:8px;background:#aaa;color:#fff;font-size:11px">' . dol_escape_htmltag($c->poste) . '</span>';
-		}
+	foreach ($tiers_list as $t) {
+		$sid        = (int)$t->soc_id;
+		$nb_c       = count($t->contacts);
+		$is_inactif = ($t->soc_status === 0);
 
-		// Badge assurcard
-		$assurcard_cell = ($c->assurcard !== '')
-			? '<span style="font-family:monospace;background:#e8f5e9;color:#1a7f37;padding:1px 6px;border-radius:4px;font-weight:600">' . dol_escape_htmltag($c->assurcard) . '</span>'
-			: '<span style="color:#aaa">&mdash;</span>';
-
-		// Highlight: a un assurcard mais hospi pas coché
-		$row_style = ($c->assurcard !== '' && !$c->hospi) ? ' style="background:#fffbf0"' : '';
-
-		// Séparateur visuel avant les enfants
-		$separator = ($poste_lc === 'fils' || $poste_lc === 'fille') ? ' style="border-top:2px solid #dee2e6;border-bottom:1px solid #eee"' : ' style="border-bottom:1px solid #eee"';
-
-		// Employé décédé : pas d'assurance possible
-		$is_deceased_employee = ($is_inactif && $poste_lc === 'employe');
-
-		// N'inclure dans le save que les contacts éditables
-		if (!$is_deceased_employee) {
-			print '<input type="hidden" name="all_contacts[]" value="' . $cid . '">';
-		}
-		print '<tr' . (($c->assurcard !== '' && !$c->hospi && !$is_deceased_employee) ? ' style="background:#fffbf0;' . ltrim($separator, ' style="') : $separator) . '>';
-		print '<td style="padding:5px 8px"><a href="' . DOL_URL_ROOT . '/contact/card.php?id=' . $cid . '" style="color:#333;font-weight:' . ($poste_lc === 'employe' ? 'bold' : 'normal') . '">' . dol_escape_htmltag($c->lastname) . '</a></td>';
-		print '<td style="padding:5px 8px">' . dol_escape_htmltag($c->firstname) . '</td>';
-		print '<td style="padding:5px 8px">' . $role_badge . '</td>';
-		print '<td style="padding:5px 8px">' . $assurcard_cell . '</td>';
-		print '<td style="padding:5px 8px;text-align:center">';
-		if ($is_deceased_employee) {
-			print '<span style="color:#aaa" title="Employ&eacute; d&eacute;c&eacute;d&eacute;">—</span>';
-		} elseif ($has_hospi) {
-			print '<input type="checkbox" class="ass-check" name="hospi[' . $cid . ']" value="1"' . ($c->hospi ? ' checked' : '') . ' title="Assurance Hospitali&egrave;re">';
-		} else {
-			print '<span style="color:#aaa" title="Champ non install&eacute;">—</span>';
-		}
+		print '<tr class="oddeven"' . ($is_inactif ? ' style="opacity:0.6"' : '') . '>';
+		print '<td style="text-align:center;padding:6px 4px"><button type="button" id="ass-btn-' . $sid . '" class="ass-toggle-btn" onclick="assToggle(' . $sid . ')" title="Voir les contacts">&#9658;</button></td>';
+		print '<td>';
+		print '<a href="' . DOL_URL_ROOT . '/societe/card.php?socid=' . $sid . '" style="font-weight:600' . ($is_inactif ? ';color:#6c757d' : '') . '">' . dol_escape_htmltag($t->soc_nom) . '</a>';
+		if ($is_inactif) ass_tiers_badge_motif($t, $url_base);
 		print '</td>';
-		print '<td style="padding:5px 8px;text-align:center">';
-		if ($is_deceased_employee) {
-			print '<span style="color:#aaa" title="Employ&eacute; d&eacute;c&eacute;d&eacute;">—</span>';
-		} elseif ($has_dentaire) {
-			print '<input type="checkbox" class="ass-check" name="dentaire[' . $cid . ']" value="1"' . ($c->dentaire ? ' checked' : '') . ' title="Assurance dentaire">';
-		} else {
-			print '<span style="color:#aaa" title="Champ non install&eacute;">—</span>';
-		}
+		print '<td class="center"><span style="font-weight:bold">' . $nb_c . '</span></td>';
+		$nh = $t->nb_hospi; $nd = $t->nb_dentaire;
+		print '<td class="center">';
+		print $nh > 0 ? '<span style="color:#6f42c1;font-weight:bold">' . img_picto('', 'fa-check-circle', '') . ' ' . $nh . '/' . $nb_c . '</span>' : '<span style="color:#aaa">' . img_picto('', 'fa-times-circle', '') . ' 0/' . $nb_c . '</span>';
+		print '</td>';
+		print '<td class="center">';
+		print $nd > 0 ? '<span style="color:#0d6efd;font-weight:bold">' . img_picto('', 'fa-check-circle', '') . ' ' . $nd . '/' . $nb_c . '</span>' : '<span style="color:#aaa">' . img_picto('', 'fa-times-circle', '') . ' 0/' . $nb_c . '</span>';
 		print '</td>';
 		print '</tr>';
+
+		// Détail dépliable
+		print '<tr class="ass-detail-row ass-det-' . $sid . '"><td colspan="5" style="padding:0 16px 12px 36px">';
+		print '<div class="ass-detail-inner"><table style="width:100%;border-collapse:collapse;font-size:0.9em">';
+		print '<tr style="color:#666;border-bottom:1px solid #ddd"><th style="text-align:left;padding:4px 8px">Nom</th><th style="text-align:left;padding:4px 8px">Pr&eacute;nom</th><th style="text-align:left;padding:4px 8px">Poste</th><th style="text-align:left;padding:4px 8px">N&deg; Assurcard</th><th style="text-align:center;padding:4px 8px;color:#6f42c1">Hospi.</th><th style="text-align:center;padding:4px 8px;color:#0d6efd">Dentaire</th></tr>';
+		foreach ($t->contacts as $c) {
+			ass_contact_row($c, $is_inactif, $has_hospi, $has_dentaire, false);
+		}
+		print '</table></div></td></tr>';
 	}
 
 	print '</table>';
-	print '</div>';
-	print '</td></tr>';
 }
-
-print '</table>';
 
 // ── Bouton enregistrer ─────────────────────────────────────────────────────────
 print '<div style="margin-top:16px;display:flex;gap:10px;align-items:center">';
