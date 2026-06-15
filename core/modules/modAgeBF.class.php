@@ -547,7 +547,6 @@ class modAgeBF extends DolibarrModules
 		// Sur les Tiers (societe)
 		$extrafields->addExtraField('fete_enfants',      "Fête des enfants",        'boolean', 1, '',  'societe', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
 		$extrafields->addExtraField('nb_enfants_invites',"Nb enfants invités (< 16)",'int',    2, 3,   'societe', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
-		$extrafields->addExtraField('motif_archive',     "Motif archivage",         'varchar', 3, 20,  'societe', 0, 0, '', '', 0, '', 0, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
 
 		// Permissions
 		$this->remove($options);

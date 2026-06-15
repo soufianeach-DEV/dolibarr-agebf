@@ -34,22 +34,19 @@ if ($res_cols) {
 	$db->free($res_cols);
 }
 
-// Vérification colonne motif_archive sur Tiers
-$has_motif_archive = false;
-$res_cols_soc = $db->query("SHOW COLUMNS FROM " . MAIN_DB_PREFIX . "societe_extrafields");
-if ($res_cols_soc) {
-	while ($col = $db->fetch_object($res_cols_soc)) {
-		if ($col->Field === 'motif_archive') $has_motif_archive = true;
-	}
-	$db->free($res_cols_soc);
-}
+// Table dédiée du module — créée si absente (idempotent)
+$db->query("CREATE TABLE IF NOT EXISTS " . MAIN_DB_PREFIX . "agebf_tiers_archive ("
+         . " fk_soc        INT         NOT NULL,"
+         . " motif_archive VARCHAR(20) NOT NULL DEFAULT 'autre',"
+         . " UNIQUE KEY uk_agebf_ta_soc (fk_soc)"
+         . ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
 // ── Action : définir le motif d'archivage d'un Tiers ─────────────────────────
-if ($action === 'set_motif' && !empty($_POST['token']) && $has_motif_archive) {
+if ($action === 'set_motif' && !empty($_POST['token'])) {
 	$soc_id = (int)GETPOST('soc_id', 'int');
 	$motif  = GETPOST('motif', 'aZ09');
 	if ($soc_id > 0 && in_array($motif, ['decede', 'retraite', 'demission', 'autre'])) {
-		$db->query("INSERT INTO " . MAIN_DB_PREFIX . "societe_extrafields (fk_object, motif_archive)"
+		$db->query("INSERT INTO " . MAIN_DB_PREFIX . "agebf_tiers_archive (fk_soc, motif_archive)"
 		          . " VALUES ($soc_id, '" . $db->escape($motif) . "')"
 		          . " ON DUPLICATE KEY UPDATE motif_archive = '" . $db->escape($motif) . "'");
 	}
@@ -132,8 +129,8 @@ if (GETPOSTISSET('motif_ok')) {
 // Colonnes dynamiques selon existence
 $sel_hospi    = $has_hospi    ? 'COALESCE(ex.assurance_hospi, 0)'    : '0';
 $sel_dentaire = $has_dentaire ? 'COALESCE(ex.assurance_dentaire, 0)' : '0';
-$sel_assurcard     = $has_assurcard     ? "COALESCE(ex.assurcard, '')"          : "''";
-$sel_motif_archive = $has_motif_archive ? "COALESCE(sex.motif_archive, '')"    : "''";
+$sel_assurcard     = $has_assurcard ? "COALESCE(ex.assurcard, '')" : "''";
+$sel_motif_archive = "COALESCE(ta.motif_archive, '')";
 
 $sql_data = "SELECT
     s.rowid    AS soc_id,
@@ -148,7 +145,7 @@ $sql_data = "SELECT
     " . $sel_dentaire . " AS dentaire,
     " . $sel_assurcard . " AS assurcard
 FROM " . MAIN_DB_PREFIX . "societe s
-LEFT JOIN " . MAIN_DB_PREFIX . "societe_extrafields sex ON sex.fk_object = s.rowid
+LEFT JOIN " . MAIN_DB_PREFIX . "agebf_tiers_archive ta ON ta.fk_soc = s.rowid
 JOIN " . MAIN_DB_PREFIX . "socpeople c ON c.fk_soc = s.rowid
 LEFT JOIN " . MAIN_DB_PREFIX . "socpeople_extrafields ex ON ex.fk_object = c.rowid
 WHERE s.entity = " . (int)$conf->entity . "
@@ -364,7 +361,7 @@ foreach ($tiers_list as $t) {
 	print '<td>';
 	print '<a href="' . DOL_URL_ROOT . '/societe/card.php?socid=' . $sid . '" style="font-weight:600' . ($is_inactif ? ';color:#6c757d' : '') . '">' . dol_escape_htmltag($t->soc_nom) . '</a>';
 	print $badge_inactif;
-	if ($is_inactif && $has_motif_archive) {
+	if ($is_inactif) {
 		$motif_select_opts = [
 			'decede'    => '&#9760;&nbsp;D&eacute;c&eacute;d&eacute;(e)',
 			'retraite'  => '&#127958;&nbsp;Retrait&eacute;(e)',
