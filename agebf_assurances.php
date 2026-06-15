@@ -18,13 +18,27 @@ $url_base         = DOL_URL_ROOT . '/custom/agebf/agebf_assurances.php';
 $msg_ok           = '';
 $msg_err          = '';
 
-// Filtres
-$search_nom        = trim(GETPOST('search_nom',       'alphanohtml'));
-$filter_assurance  = GETPOST('filter_assurance', 'aZ09'); // '' | hospi | dentaire | both | none
-$filter_assurcard  = GETPOST('filter_assurcard', 'aZ09'); // '' | with | without | anomalie
-$filter_statut     = GETPOST('filter_statut',    'aZ09'); // '' | actif | archive
-$sort_col          = GETPOST('sort',             'aZ09'); // nom | contacts | hospi | dentaire
-$sort_dir          = GETPOST('sort_dir',         'aZ09') === 'desc' ? 'desc' : 'asc';
+// Filtres — lecture depuis $_GET (formulaire GET, bypasse GETPOST qui priorise $_POST)
+$search_nom       = isset($_GET['search_nom'])       ? strip_tags(trim($_GET['search_nom'])) : '';
+$filter_assurance = in_array(($_GET['filter_assurance'] ?? ''), ['', 'hospi', 'dentaire', 'both', 'none'])
+                    ? ($_GET['filter_assurance'] ?? '') : '';
+$filter_assurcard = in_array(($_GET['filter_assurcard'] ?? ''), ['', 'with', 'without', 'anomalie'])
+                    ? ($_GET['filter_assurcard'] ?? '') : '';
+$filter_statut    = in_array(($_GET['filter_statut']    ?? ''), ['', 'actif', 'archive'])
+                    ? ($_GET['filter_statut'] ?? '')    : '';
+$sort_col         = in_array(($_GET['sort']             ?? ''), ['', 'nom', 'contacts', 'hospi', 'dentaire'])
+                    ? ($_GET['sort'] ?? '')              : '';
+$sort_dir         = (($_GET['sort_dir'] ?? '') === 'desc') ? 'desc' : 'asc';
+
+// Depuis le formulaire save (POST), récupérer les filtres passés en hidden
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!empty($_POST['search_nom']))       $search_nom       = strip_tags(trim($_POST['search_nom']));
+    if (!empty($_POST['filter_assurance'])) $filter_assurance = $_POST['filter_assurance'];
+    if (!empty($_POST['filter_assurcard'])) $filter_assurcard = $_POST['filter_assurcard'];
+    if (!empty($_POST['filter_statut']))    $filter_statut    = $_POST['filter_statut'];
+    if (!empty($_POST['sort']))             $sort_col         = $_POST['sort'];
+    if (!empty($_POST['sort_dir']))         $sort_dir         = $_POST['sort_dir'] === 'desc' ? 'desc' : 'asc';
+}
 
 // Construction URL avec filtres préservés
 function ass_url(string $base, array $override = []): string {
