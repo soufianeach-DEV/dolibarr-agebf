@@ -2,7 +2,7 @@
 
 **Projet :** Dolibarr ERP/CRM — module personnalisé « AgeBF / Helpy » pour Bruxelles Formation  
 **Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
-**Version livrée :** 5.2  
+**Version livrée :** 5.3  
 **Date de mise à jour :** 15 juin 2026
 
 ---
@@ -63,7 +63,10 @@ Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mai
 - Cases à cocher **Assurance Hospi.** et **Assurance Dentaire** par contact.
 - **Bouton Sync Assurcard** : coche automatiquement Hospi. pour tous les contacts ayant un N° Assurcard renseigné.
 - Mise en évidence (fond jaune) des contacts Assurcard sans Hospi. cochée.
-- **Filtre Tiers archivés** : les Tiers inactifs (employés décédés ou partis) sont masqués par défaut. Bouton « Afficher les archivés » avec compteur ; badge ⚰ + opacité réduite sur les lignes archivées.
+- **Motif d'archivage** : badge coloré par motif (⚰ Décédé / 🏖 Retraité / 🚶 Démissionné / 📁 Autre) ; mini-select inline pour définir le motif sans quitter la page. Table dédiée `llx_agebf_tiers_archive` — aucune table Dolibarr standard modifiée.
+- **Règle décès** : Tiers décédé toujours visible (grisé, en bas de liste) ; sa famille (Conjoint/Fils/Fille) reste active et ses assurances restent éditables. Contact Employé(e) du défunt : cases remplacées par `—`.
+- **Barre de filtres** : recherche par nom, filtre par type d'assurance (Hospi./Dentaire/Les deux/Aucune), filtre Assurcard (avec/sans/anomalie), filtre statut (actifs/archivés).
+- **Tri colonnes** : clic sur Tiers/Contacts/Hospi./Dentaire pour trier ASC ou DESC.
 - Bandeau de statistiques : nb Tiers, contacts, Hospi., Dentaire, Assurcard, Assurcard sans Hospi.
 
 ---
@@ -75,6 +78,7 @@ Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mai
 | **Aucune modification du cœur Dolibarr** | La solution s'appuie à 100 % sur les APIs existantes et sur une table additive propre au module (`llx_agebf_lot_sepa`). La désactivation du module est sans effet sur le cœur. |
 | **Clé de rapprochement SEPA** | `MsgId = DOL/AAAAMMJJ/CTxx`, stocké dans `llx_agebf_lot_sepa` à la génération du fichier. |
 | **Extrafields** | 5 champs sur `llx_socpeople_extrafields` (`age_1jan`, `fete_enfants`, `fk_parent`, `assurance_hospi`, `assurance_dentaire`) créés automatiquement à l'activation. Contrainte `UNIQUE KEY` sur `fk_object` pour garantir l'intégrité des upserts (`INSERT … ON DUPLICATE KEY UPDATE`). |
+| **Table motif archive** | `llx_agebf_tiers_archive` (fk_soc, motif_archive) — table propre au module, aucune table Dolibarr standard modifiée. Créée automatiquement (`CREATE TABLE IF NOT EXISTS`) à chaque chargement de la page Assurances. |
 | **Défense SQL** | `SHOW COLUMNS` avant tout `JOIN` sur les colonnes extrafields potentiellement absentes — évite les erreurs `Unknown column` si le module n'a pas encore été réactivé après une mise à jour. |
 | **Filtre Tiers inactifs** | `AND s.status = 1` dans la requête principale d'Assurances, conditionnel à `$show_inactifs`. Sort SQL `ORDER BY s.status DESC` pour afficher les archivés en bas de liste. |
 | **Séparation client/fournisseur** | Deux tableaux PHP distincts (`$factures` et `$factures_client`) pour éviter les collisions de `rowid` entre `llx_facture` et `llx_facture_fourn` qui démarrent toutes deux à 1. |
@@ -94,7 +98,9 @@ Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mai
 | Import Belfius scénario B (réf. SEPA + repli montant/date) | ✅ Livré |
 | Rapprochement bancaire — factures clients | ✅ Livré (v5.1) |
 | Assurances — Hospi. / Dentaire / Sync Assurcard | ✅ Livré (v5.1) |
-| Assurances — Filtre Tiers archivés / décédés | ✅ Livré (v5.2) |
+| Assurances — Motif archivage (Décédé/Retraité/Démissionné) | ✅ Livré (v5.3) |
+| Assurances — Règle décès : famille active, employé bloqué | ✅ Livré (v5.3) |
+| Assurances — Filtres + tri colonnes | ✅ Livré (v5.3) |
 | Tri cliquable sur toutes les colonnes (les deux pages) | ✅ Livré |
 | Test de génération SEPA en navigateur | À valider en production |
 
@@ -118,6 +124,9 @@ Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mai
 | Liens écritures bancaires Belfius cassés | `account=1` au lieu de `account=2` | Corrigé dans `agebf_packs.php` (×2) et `agebf_compta.php` (×1) |
 | Bug PHP 8 — `count(): null given` | Variable locale `$conf` (niveau de confiance) écrasait l'objet global `$conf` de Dolibarr | Renommée `$confiance` |
 | Contacts en doublon dans la page Assurances | Table `llx_socpeople_extrafields` sans contrainte `UNIQUE KEY` sur `fk_object` — les scripts de test inséraient plusieurs lignes par contact | Suppression des doublons + `ALTER TABLE … ADD UNIQUE KEY` |
+| Tiers décédé invisible malgré « Afficher les archivés » | Contacts famille mis à `statut=0` → JOIN `c.statut=1` excluait le Tiers entier | Famille réactivée (`statut=1`) ; Tiers visible en permanence (grisé) |
+| Cases assurance cochables pour un employé décédé | Aucune vérification du statut du Tiers sur le contact Employé(e) | Cases remplacées par `—` si `poste=Employe` et `soc_status=0` ; données vidées en DB |
+| `motif_archive` dans table Dolibarr standard | Premier jet dans `llx_societe_extrafields` via `addExtraField` | Déplacé dans table dédiée `llx_agebf_tiers_archive` hors Dolibarr |
 
 ---
 

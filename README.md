@@ -3,7 +3,7 @@
 > Module custom développé dans le cadre d'un stage chez **Bruxelles Formation**.
 
 **Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
-**Version :** 5.2  
+**Version :** 5.3  
 **Compatibilité :** Dolibarr 19+, PHP 8.0+
 
 ---
@@ -16,7 +16,7 @@ Cinq fonctionnalités regroupées sous le menu **Helpy** :
 2. Suivre les **documents** (composition de ménage) fournis par chaque Tiers
 3. Préparer les **paiements à effectuer** (factures fournisseurs des packs ASBL, virements SEPA en un clic)
 4. Réaliser le **rapprochement bancaire** des paiements — fournisseurs SEPA via import Belfius (scénario B) et **factures clients** avec filtre Toutes / Clients / Fournisseurs
-5. Gérer les **assurances** (Hospi. / Dentaire) par contact, avec sync automatique depuis le champ Assurcard et filtre des Tiers archivés
+5. Gérer les **assurances** (Hospi. / Dentaire) par contact, avec sync automatique depuis le champ Assurcard, motif d'archivage (Décédé / Retraité / Démissionné), filtres et tri colonnes
 
 **Règle métier — Fête des enfants :** un enfant est invité s'il a strictement moins de 16 ans au 1er janvier (les 15 ans sont inclus).
 
@@ -92,6 +92,7 @@ ALTER TABLE llx_facture_fourn_extrafields
 | Table | Rôle |
 |---|---|
 | `llx_agebf_lot_sepa` | Stockage du `MsgId` SEPA par bon de virement — clé de rapprochement infaillible |
+| `llx_agebf_tiers_archive` | Motif d'archivage par Tiers (`decede` / `retraite` / `demission` / `autre`) |
 
 ---
 
@@ -167,7 +168,7 @@ Après activation, le menu **Helpy** apparaît dans la barre du haut avec cinq s
 | Documents Tiers | Helpy → Documents Tiers | Suivi des compositions de ménage par Tiers |
 | Paiements à effectuer | Helpy → Paiements à effectuer | Préparer/suivre les factures fournisseurs, virements SEPA en 1 clic |
 | Rapprochement bancaire | Helpy → Rapprochement bancaire | Factures clients + fournisseurs, pointage relevé Belfius (import CSV ou manuel) |
-| Assurances | Helpy → Assurances | Assurance Hospi./Dentaire par contact, sync Assurcard, filtre Tiers archivés |
+| Assurances | Helpy → Assurances | Assurance Hospi./Dentaire par contact, sync Assurcard, motif archivage, filtres, tri colonnes |
 
 ---
 
@@ -241,15 +242,18 @@ Gestion des assurances complémentaires (hospitalisation et dentaire) par contac
 | Élément | Description |
 |---|---|
 | Bandeau stats | Nb Tiers, contacts total, nb Hospi., nb Dentaire, nb Assurcard, nb Assurcard sans Hospi. |
+| **Barre de filtres** | Recherche nom · Filtre Assurance (Tous/Hospi./Dentaire/Les deux/Aucune) · Filtre Assurcard (Tous/Avec/Sans/Anomalie) · Filtre Statut (Actifs+archivés/Actifs/Archivés) |
+| **Tri colonnes** | Clic sur Tiers/Contacts/Hospi./Dentaire → tri ASC/DESC |
 | Tableau | 1 ligne par Tiers — contacts dépliables au clic |
-| Détail contact | Nom, Prénom, Poste, N° Assurcard, case Hospi., case Dentaire |
+| Détail contact | Nom, Prénom, Badge rôle (Employé(e)/Conjoint(e)/Fils/Fille), N° Assurcard, case Hospi., case Dentaire |
 | Highlight | Fond jaune sur les contacts ayant un N° Assurcard mais Hospi. non cochée |
 | **Bouton Sync Assurcard** | Coche automatiquement `assurance_hospi` pour tous les contacts ayant un N° Assurcard renseigné |
-| **Filtre Tiers archivés** | Par défaut : seuls les Tiers actifs (`status = 1`) sont affichés. Bouton « Afficher les archivés » avec compteur. Les Tiers inactifs (décédés/partis) apparaissent en grisé avec badge ⚰ Archivé |
+| **Motif d'archivage** | Tiers décédé/retraité/démissionné : badge coloré (⚰/🏖/🚶/📁) + select inline pour définir le motif sans quitter la page |
+| **Règle décès** | Tiers décédé (`status=0`) : toujours visible (grisé) ; famille active et modifiable ; contact Employé(e) : cases remplacées par `—` (non éditables) |
 | Enregistrement | Bouton global « Enregistrer les assurances » — toutes les cases en une seule requête |
 | Déplier/Replier tout | Boutons globaux pour ouvrir ou fermer tous les Tiers en un clic |
 
-> **Archiver un Tiers décédé :** Fiche Tiers → Actions → **Mettre en inactif**. Il disparaît automatiquement de la vue normale et reste accessible via « Afficher les archivés ».
+> **Archiver un Tiers décédé :** Fiche Tiers → Actions → **Mettre en inactif**, puis sur la page Assurances choisir **⚰ Décédé(e)** dans le select inline. La famille reste active et ses assurances restent éditables.
 
 ---
 

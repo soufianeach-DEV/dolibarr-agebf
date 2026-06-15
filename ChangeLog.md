@@ -2,10 +2,18 @@
 
 ## 5.3 (2026-06-15)
 
-### Corrections et améliorations
+### Nouvelles fonctionnalités
 
-- **feat** : page Assurances — motif d'archivage par Tiers inactif : badge coloré distinctif selon le motif (`⚰ Décédé(e)` gris foncé / `🏖 Retraité(e)` bleu-gris / `🚶 Démissionné(e)` orange / `📁 Autre` gris) ; mini-formulaire inline (select + bouton ✓) pour définir ou modifier le motif directement depuis la page sans quitter l'écran
-- **feat** : nouvel extrafield `motif_archive` (varchar 20) sur les Tiers (`llx_societe_extrafields`) — créé automatiquement à l'activation du module
+- **feat** : page Assurances — **motif d'archivage** par Tiers inactif : badge coloré distinctif (`⚰ Décédé(e)` / `🏖 Retraité(e)` / `🚶 Démissionné(e)` / `📁 Autre`) ; mini-formulaire inline (select + bouton ✓) pour définir le motif sans quitter la page
+- **feat** : page Assurances — **barre de filtres** : recherche textuelle sur le nom du Tiers, filtre Assurance (Tous / Hospi. / Dentaire / Les deux / Aucune), filtre Assurcard (Tous / Avec N° / Sans N° / Anomalie sans Hospi.), filtre Statut (Actifs + archivés / Actifs / Archivés) ; filtres préservés après enregistrement et synchronisation
+- **feat** : page Assurances — **tri cliquable** sur toutes les colonnes (Tiers ↕, Contacts ↕, Hospi. ↕, Dentaire ↕), tri ASC/DESC avec icône directionnelle
+- **feat** : Tiers décédé (`status=0`) **toujours visible** dans la liste (plus de bouton "Afficher les archivés") ; ligne grisée avec badge motif ; famille (Conjoint/Fils/Fille) reste active et modifiable
+
+### Corrections
+
+- **fix** : `motif_archive` stocké dans la table dédiée `llx_agebf_tiers_archive` (hors Dolibarr standard) au lieu de `llx_societe_extrafields` — aucune modification de table standard Dolibarr
+- **fix** : contacts famille (Conjoint/Fils/Fille) réactivés (`statut=1`) même quand le Tiers est archivé/décédé
+- **fix** : contact `Employé(e)` d'un Tiers décédé : cases Hospi./Dentaire remplacées par `—` (non éditables, non inclus dans le save) ; données en DB mises à zéro
 - ZIP : `module_agebf-5.3.zip`
 
 ## 5.2 (2026-06-15)
