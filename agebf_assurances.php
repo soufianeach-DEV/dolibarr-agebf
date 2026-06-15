@@ -429,21 +429,31 @@ foreach ($tiers_list as $t) {
 		// Séparateur visuel avant les enfants
 		$separator = ($poste_lc === 'fils' || $poste_lc === 'fille') ? ' style="border-top:2px solid #dee2e6;border-bottom:1px solid #eee"' : ' style="border-bottom:1px solid #eee"';
 
-		print '<input type="hidden" name="all_contacts[]" value="' . $cid . '">';
-		print '<tr' . (($c->assurcard !== '' && !$c->hospi) ? ' style="background:#fffbf0;' . ltrim($separator, ' style="') : $separator) . '>';
+		// Employé décédé : pas d'assurance possible
+		$is_deceased_employee = ($is_inactif && $poste_lc === 'employe');
+
+		// N'inclure dans le save que les contacts éditables
+		if (!$is_deceased_employee) {
+			print '<input type="hidden" name="all_contacts[]" value="' . $cid . '">';
+		}
+		print '<tr' . (($c->assurcard !== '' && !$c->hospi && !$is_deceased_employee) ? ' style="background:#fffbf0;' . ltrim($separator, ' style="') : $separator) . '>';
 		print '<td style="padding:5px 8px"><a href="' . DOL_URL_ROOT . '/contact/card.php?id=' . $cid . '" style="color:#333;font-weight:' . ($poste_lc === 'employe' ? 'bold' : 'normal') . '">' . dol_escape_htmltag($c->lastname) . '</a></td>';
 		print '<td style="padding:5px 8px">' . dol_escape_htmltag($c->firstname) . '</td>';
 		print '<td style="padding:5px 8px">' . $role_badge . '</td>';
 		print '<td style="padding:5px 8px">' . $assurcard_cell . '</td>';
 		print '<td style="padding:5px 8px;text-align:center">';
-		if ($has_hospi) {
-			print '<input type="checkbox" class="ass-check" name="hospi[' . $cid . ']" value="1"' . ($c->hospi ? ' checked' : '') . ' title="Assurance Hospitaliére">';
+		if ($is_deceased_employee) {
+			print '<span style="color:#aaa" title="Employ&eacute; d&eacute;c&eacute;d&eacute;">—</span>';
+		} elseif ($has_hospi) {
+			print '<input type="checkbox" class="ass-check" name="hospi[' . $cid . ']" value="1"' . ($c->hospi ? ' checked' : '') . ' title="Assurance Hospitali&egrave;re">';
 		} else {
 			print '<span style="color:#aaa" title="Champ non install&eacute;">—</span>';
 		}
 		print '</td>';
 		print '<td style="padding:5px 8px;text-align:center">';
-		if ($has_dentaire) {
+		if ($is_deceased_employee) {
+			print '<span style="color:#aaa" title="Employ&eacute; d&eacute;c&eacute;d&eacute;">—</span>';
+		} elseif ($has_dentaire) {
 			print '<input type="checkbox" class="ass-check" name="dentaire[' . $cid . ']" value="1"' . ($c->dentaire ? ' checked' : '') . ' title="Assurance dentaire">';
 		} else {
 			print '<span style="color:#aaa" title="Champ non install&eacute;">—</span>';
