@@ -13,8 +13,10 @@ if (!$res && file_exists("../../main.inc.php")) { $res = @include "../../main.in
 if (!$res) { die("Include of main fails"); }
 
 // ── Paramètres ────────────────────────────────────────────────────────────────
-$action   = GETPOST('action', 'aZ09');
-$url_base = DOL_URL_ROOT . '/custom/agebf/agebf_assurances.php';
+$action         = GETPOST('action', 'aZ09');
+$show_inactifs  = GETPOST('show_inactifs', 'int') ? 1 : 0;
+$url_base       = DOL_URL_ROOT . '/custom/agebf/agebf_assurances.php';
+$url_base_si    = $url_base . ($show_inactifs ? '?show_inactifs=1' : '');
 $msg_ok   = '';
 $msg_err  = '';
 
@@ -48,7 +50,7 @@ if ($action === 'sync_assurcard' && !empty($_POST['token']) && $has_assurcard &&
 		}
 		$db->free($r_sync);
 	}
-	header('Location: ' . $url_base . '?sync_ok=' . $nb_sync);
+	header('Location: ' . $url_base_si . (strpos($url_base_si, '?') !== false ? '&' : '?') . 'sync_ok=' . $nb_sync);
 	exit;
 }
 
@@ -86,7 +88,7 @@ if ($action === 'save' && !empty($_POST['token'])) {
 		         . " ON DUPLICATE KEY UPDATE $dup";
 		if ($db->query($sql_ups)) $nb_saved++;
 	}
-	header('Location: ' . $url_base . '?save_ok=' . $nb_saved);
+	header('Location: ' . $url_base_si . (strpos($url_base_si, '?') !== false ? '&' : '?') . 'save_ok=' . $nb_saved);
 	exit;
 }
 
@@ -109,6 +111,7 @@ $sel_assurcard = $has_assurcard ? "COALESCE(ex.assurcard, '')"       : "''";
 $sql_data = "SELECT
     s.rowid    AS soc_id,
     s.nom      AS soc_nom,
+    s.status   AS soc_status,
     c.rowid    AS cid,
     c.lastname,
     c.firstname,
@@ -120,8 +123,9 @@ FROM " . MAIN_DB_PREFIX . "societe s
 JOIN " . MAIN_DB_PREFIX . "socpeople c ON c.fk_soc = s.rowid
 LEFT JOIN " . MAIN_DB_PREFIX . "socpeople_extrafields ex ON ex.fk_object = c.rowid
 WHERE s.entity = " . (int)$conf->entity . "
-  AND c.entity = " . (int)$conf->entity . "
-ORDER BY s.nom ASC, c.lastname ASC, c.firstname ASC";
+  AND c.entity = " . (int)$conf->entity
+. ($show_inactifs ? '' : " AND s.status = 1")
+. " ORDER BY s.status DESC, s.nom ASC, c.lastname ASC, c.firstname ASC";
 
 $resql = $db->query($sql_data);
 if (!$resql) {
@@ -131,16 +135,17 @@ if (!$resql) {
 }
 
 // Grouper par Tiers
-$tiers_list = [];  // [soc_id => {soc_id, soc_nom, contacts:[]}]
+$tiers_list = [];  // [soc_id => {soc_id, soc_nom, soc_status, contacts:[]}]
 $stats_hospi    = 0;
 $stats_dentaire = 0;
 $stats_assurcard = 0;
 $stats_hospi_missing = 0; // a un assurcard mais hospi pas coché
+$nb_tiers_inactifs = 0;
 
 while ($obj = $db->fetch_object($resql)) {
 	$sid = (int)$obj->soc_id;
 	if (!isset($tiers_list[$sid])) {
-		$tiers_list[$sid] = (object)['soc_id' => $sid, 'soc_nom' => $obj->soc_nom, 'contacts' => []];
+		$tiers_list[$sid] = (object)['soc_id' => $sid, 'soc_nom' => $obj->soc_nom, 'soc_status' => (int)$obj->soc_status, 'contacts' => []];
 	}
 	$obj->hospi    = (int)$obj->hospi;
 	$obj->dentaire = (int)$obj->dentaire;
@@ -155,6 +160,9 @@ while ($obj = $db->fetch_object($resql)) {
 }
 $db->free($resql);
 
+foreach ($tiers_list as $t) {
+	if ($t->soc_status === 0) $nb_tiers_inactifs++;
+}
 $nb_tiers    = count($tiers_list);
 $nb_contacts = array_sum(array_map(fn($t) => count($t->contacts), $tiers_list));
 
@@ -247,12 +255,28 @@ if ($has_assurcard && $has_hospi && $stats_hospi_missing > 0) {
 print '<button type="button" onclick="assToggleAll(true)" style="padding:6px 12px;background:#6c757d;color:#fff;border:none;border-radius:3px;font-size:0.85em;cursor:pointer">D&eacute;plier tout</button>';
 print '<button type="button" onclick="assToggleAll(false)" style="padding:6px 12px;background:#6c757d;color:#fff;border:none;border-radius:3px;font-size:0.85em;cursor:pointer">Replier tout</button>';
 
+// Toggle Tiers archivés
+if ($show_inactifs) {
+	print '<a href="' . $url_base . '" style="padding:6px 12px;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:3px;font-size:0.85em;text-decoration:none;font-weight:600">';
+	print '&#9760; Masquer les archiv&eacute;s</a>';
+} else {
+	// Compter les Tiers inactifs (requête rapide)
+	$r_inact = $db->query("SELECT COUNT(*) AS nb FROM " . MAIN_DB_PREFIX . "societe WHERE status = 0 AND entity = " . (int)$conf->entity);
+	$nb_inact = $r_inact ? (int)$db->fetch_object($r_inact)->nb : 0;
+	$db->free($r_inact);
+	if ($nb_inact > 0) {
+		print '<a href="' . $url_base . '?show_inactifs=1" style="padding:6px 12px;background:#f8f9fa;color:#6c757d;border:1px solid #dee2e6;border-radius:3px;font-size:0.85em;text-decoration:none">';
+		print '&#9760; Afficher les archiv&eacute;s <span style="background:#6c757d;color:#fff;border-radius:8px;padding:0 5px;font-size:0.85em">' . $nb_inact . '</span></a>';
+	}
+}
+
 print '</div>';
 
 // ── Tableau ───────────────────────────────────────────────────────────────────
 print '<form method="POST" action="' . $url_base . '">';
-print '<input type="hidden" name="token"  value="' . newToken() . '">';
-print '<input type="hidden" name="action" value="save">';
+print '<input type="hidden" name="token"         value="' . newToken() . '">';
+print '<input type="hidden" name="action"        value="save">';
+print '<input type="hidden" name="show_inactifs" value="' . $show_inactifs . '">';
 
 print '<table class="noborder centpercent">';
 print '<tr class="liste_titre">';
@@ -279,11 +303,18 @@ foreach ($tiers_list as $t) {
 		if ($c->dentaire) $nb_dentaire++;
 	}
 
-	print '<tr class="oddeven">';
+	$is_inactif  = ($t->soc_status === 0);
+	$row_opacity = $is_inactif ? ' style="opacity:0.55"' : '';
+	$badge_inactif = $is_inactif
+		? ' <span title="Tiers archiv&eacute; / D&eacute;c&eacute;d&eacute;" style="font-size:1em;cursor:default">&#9760;</span>'
+		  . ' <span style="font-size:0.72em;background:#6c757d;color:#fff;padding:1px 6px;border-radius:8px;vertical-align:middle">Archiv&eacute;</span>'
+		: '';
+
+	print '<tr class="oddeven"' . $row_opacity . '>';
 	print '<td style="text-align:center;padding:6px 4px">';
 	print '<button type="button" id="ass-btn-' . $sid . '" class="ass-toggle-btn" onclick="assToggle(' . $sid . ')" title="Voir les contacts">&#9658;</button>';
 	print '</td>';
-	print '<td><a href="' . DOL_URL_ROOT . '/societe/card.php?socid=' . $sid . '" style="font-weight:600">' . dol_escape_htmltag($t->soc_nom) . '</a></td>';
+	print '<td><a href="' . DOL_URL_ROOT . '/societe/card.php?socid=' . $sid . '" style="font-weight:600' . ($is_inactif ? ';color:#6c757d' : '') . '">' . dol_escape_htmltag($t->soc_nom) . '</a>' . $badge_inactif . '</td>';
 	print '<td class="center"><span style="font-weight:bold">' . $nb_c . '</span></td>';
 	print '<td class="center">';
 	if ($nb_hospi > 0) {

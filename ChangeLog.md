@@ -1,5 +1,14 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 5.2 (2026-06-15)
+
+### Corrections et améliorations
+
+- **feat** : page Assurances — filtre Tiers archivés/inactifs : par défaut seuls les Tiers actifs (`s.status = 1`) sont affichés ; bouton « Afficher les archivés » avec compteur, badge ⚰ + opacité réduite sur les lignes archivées, bouton « Masquer les archivés » pour revenir à la vue normale
+- **fix** : table `llx_socpeople_extrafields` — ajout d'une contrainte `UNIQUE KEY` sur `fk_object` (manquante à la création par Dolibarr) ; suppression des lignes en double produites par les scripts de test qui inséraient sans détecter de doublon
+- **dev** : scripts de données test `gen_assurances_test.php` et `gen_names_test.php`
+- ZIP : `module_agebf-5.2.zip`
+
 ## 5.1 (2026-06-15)
 
 ### Nouvelles fonctionnalités
