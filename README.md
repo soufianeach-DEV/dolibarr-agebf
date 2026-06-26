@@ -3,7 +3,7 @@
 > Module custom développé dans le cadre d'un stage chez **Bruxelles Formation**.
 
 **Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
-**Version :** 6.1  
+**Version :** 6.2  
 **Compatibilité :** Dolibarr 19+, PHP 8.0+
 
 ---

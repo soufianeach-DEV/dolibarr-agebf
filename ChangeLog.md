@@ -1,5 +1,12 @@
 # CHANGELOG AGEBF FOR [DOLIBARR ERP CRM](https://www.dolibarr.org)
 
+## 6.2 (2026-06-20)
+
+### Corrections
+
+- **fix** : extrafields `assurance_hospi` et `assurance_dentaire` — passage à `alwayseditable = 1` : les cases à cocher sont désormais modifiables directement depuis la fiche contact et l'onglet Contacts d'un Tiers, en dehors de la page Helpy Assurances
+- ZIP : `module_agebf-6.2.zip`
+
 ## 6.1 (2026-06-15)
 
 ### Nouvelles fonctionnalités

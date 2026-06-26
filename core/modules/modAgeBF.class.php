@@ -72,7 +72,7 @@ class modAgeBF extends DolibarrModules
 		$this->editor_url = '';
 
 		// Possible values for version are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated', 'experimental_deprecated' or a version string like 'x.y.z'
-		$this->version = '6.1';
+		$this->version = '6.2';
 		// Url to the file with your last numberversion of this module
 		//$this->url_last_version = 'http://www.example.com/versionmodule.txt';
 
@@ -541,8 +541,8 @@ class modAgeBF extends DolibarrModules
 		$extrafields->addExtraField('age_1jan',          "Âge au 1er janvier",  'int',     1, 3,  'socpeople', 0, 0, '',  '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
 		$extrafields->addExtraField('fete_enfants',      "Fête des enfants",    'boolean', 2, '',  'socpeople', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
 		$extrafields->addExtraField('fk_parent',         "Parent (contact ID)", 'int',     3, 11, 'socpeople', 0, 0, '',  '', 0, '', 0, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
-		$extrafields->addExtraField('assurance_hospi',   "Assurance Hospi.",   'boolean', 4, '',  'socpeople', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
-		$extrafields->addExtraField('assurance_dentaire',"Assurance dentaire", 'boolean', 5, '',  'socpeople', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+		$extrafields->addExtraField('assurance_hospi',   "Assurance Hospi.",   'boolean', 4, '',  'socpeople', 0, 0, '0', '', 1, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
+		$extrafields->addExtraField('assurance_dentaire',"Assurance dentaire", 'boolean', 5, '',  'socpeople', 0, 0, '0', '', 1, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');
 
 		// Sur les Tiers (societe)
 		$extrafields->addExtraField('fete_enfants',      "Fête des enfants",        'boolean', 1, '',  'societe', 0, 0, '0', '', 0, '', 1, 0, '', '', 'agebf@agebf', 'isModEnabled("agebf")');

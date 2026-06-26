@@ -2,7 +2,7 @@
 
 **Projet :** Dolibarr ERP/CRM — module personnalisé « AgeBF / Helpy » pour Bruxelles Formation  
 **Auteur :** Soufiane Achraa — Stage 2026 — TECHGEST ICCBXL  
-**Version livrée :** 6.1  
+**Version livrée :** 6.2  
 **Date de mise à jour :** 15 juin 2026
 
 ---
@@ -87,7 +87,7 @@ Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mai
 
 ---
 
-## 4. État d'avancement (v6.1)
+## 4. État d'avancement (v6.2)
 
 | Fonctionnalité | État |
 |---|---|
@@ -130,6 +130,7 @@ Résout le problème SEPA : un virement bancaire regroupe plusieurs factures mai
 | Cases assurance cochables pour un employé décédé | Aucune vérification du statut du Tiers sur le contact Employé(e) | Cases remplacées par `—` si `poste=Employe` et `soc_status=0` ; données vidées en DB |
 | `motif_archive` dans table Dolibarr standard | Premier jet dans `llx_societe_extrafields` via `addExtraField` | Déplacé dans table dédiée `llx_agebf_tiers_archive` hors Dolibarr |
 | Filtres vue plate affichaient tous les contacts du Tiers | Filtre PHP opérait au niveau Tiers (exclut le Tiers entier), pas au niveau contact | Filtre à deux niveaux : Tiers (pré-filtre) + contact individuel dans la boucle vue plate |
+| Cases assurance non modifiables depuis la fiche Tiers/contact native Dolibarr | `alwayseditable = 0` sur les extrafields `assurance_hospi` / `assurance_dentaire` | Passé à `alwayseditable = 1` dans `modAgeBF.class.php` |
 
 ---
 
